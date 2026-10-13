@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uren</title>
-<meta name="uren-web-version" content="2026.10.13.2">
+<meta name="uren-web-version" content="2026.10.13.4">
 <meta name="uren-min-app" content="2.0">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
@@ -140,6 +140,7 @@ a:hover { text-decoration: underline; }
 .gutter { position: relative; border-right: 1px solid var(--line); }
 .gutter .h { position: absolute; right: 6px; font-size: var(--text-2xs); color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
 .col { position: relative; border-left: 1px solid var(--line); }
+.col.pre { background: repeating-linear-gradient(135deg, var(--panel-soft) 0 6px, var(--panel) 6px 12px); }
 .col .hl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--panel-soft); }
 .col .work { position: absolute; left: 0; right: 0; background: rgba(0, 0, 220, 0.025); }
 .col .now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--rose); z-index: 5; }
@@ -152,6 +153,10 @@ a:hover { text-decoration: underline; }
 .blk.act { border-style: dashed; border-width: 1.5px; }
 .blk.act.un { border-color: var(--orange); background: repeating-linear-gradient(135deg, rgba(255,70,0,.08) 0 6px, rgba(255,70,0,.03) 6px 12px); }
 .blk.out { opacity: .5; }
+.blk.rem { background: transparent !important; border: 1.5px dashed #b5bec8 !important; color: var(--muted) !important; box-shadow: none; }
+.blk.rem .t { font-weight: var(--weight-regular); text-decoration: line-through; }
+.blk.rem:hover { box-shadow: 0 0 0 2px var(--blue); }
+.allday.rem { background: transparent; border: 1px dashed #b5bec8; border-left-width: 1px; color: var(--muted); text-decoration: line-through; }
 .blk.man { cursor: grab; touch-action: none; }
 .blk.man.dragging { cursor: grabbing; opacity: .85; box-shadow: 0 6px 18px rgba(0, 0, 49, .18); z-index: 6; }
 .blk .resz { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
@@ -295,7 +300,7 @@ const DEFAULT_PROJECTS = [
 const DEFAULT_QUESTIONS = [];
 const DEFAULT_SETTINGS = {
   dayStart: '08:30', dayEnd: '18:00', weekend: false, rounding: 0.25, decimal: ',',
-  chunkGap: 10, minChunk: 2, fillGaps: true, countOutside: false, includeFree: false, fullDayHours: 8, weekHours: 40, catchupFrom: '',
+  chunkGap: 10, minChunk: 2, fillGaps: true, countOutside: false, includeFree: false, fullDayHours: 8, weekHours: 40, catchupFrom: '', startDate: '',
   placeholders: 'blok, nieuwe activiteit, new event', ownSources: '',
   quickNrs: '000753, 000119, 000565, 000621, 000622', fillNr: '000753', defaultWerksoort: 'VIDEO',
   askName: '', askSlack: '', updateUrl: 'https://raw.githubusercontent.com/wilsonbenjamins-collab/uren-app/main/index.html',
@@ -309,6 +314,10 @@ function normalize(s) {
   const out = { ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) } };
   if (!out.projects.some((p) => p.id === 'ignore')) out.projects.push(d.projects.find((p) => p.id === 'ignore'));
   out.migrations = out.migrations || [];
+  if (!out.migrations.includes('startdate-1')) {
+    if (!out.settings.startDate && out.settings.catchupFrom) out.settings.startDate = out.settings.catchupFrom;
+    out.migrations.push('startdate-1');
+  }
   if (!out.migrations.includes('update-url-1')) {
     if (!out.settings.updateUrl) out.settings.updateUrl = DEFAULT_SETTINGS.updateUrl;
     out.migrations.push('update-url-1');
@@ -354,6 +363,7 @@ function normalize(s) {
   out.questions = out.questions || [];
   for (const q of DEFAULT_QUESTIONS) if (!out.questions.some((x) => x.id === q.id)) out.questions.push({ ...q });
   out.calendarsSeen = out.calendarsSeen || {};
+  out.removed = out.removed || {};
   return out;
 }
 
@@ -454,11 +464,15 @@ function subtract(cov, s, e) {
 }
 
 // ---------- Dagberekening ----------
+// Startdatum: alles daarvoor wordt niet uitgelezen. Niets wordt echt gewist, dus een eerdere datum haalt het weer terug.
+const startKey = () => state.settings.startDate || '';
+const beforeStart = (date) => !!startKey() && dkey(date) < startKey();
 function computeDay(date, acts = activity) {
   const S = state.settings;
   const d0 = date.getTime(), d1 = addDays(date, 1).getTime();
   let ws = at(date, S.dayStart), we = at(date, S.dayEnd);
   const key = dkey(date);
+  if (beforeStart(date)) return { date, key, blocks: [], allDay: [], totals: {}, unassigned: 0, total: 0, titles: {}, ws, we, beforeStart: true };
   const blocks = [], allDay = [], covered = [];
   const totals = {}; let unassigned = 0;
   const titles = {};
@@ -483,8 +497,16 @@ function computeDay(date, acts = activity) {
     .sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
   const weekday = date.getDay() >= 1 && date.getDay() <= 5;
   const allDayWork = [];
-  const leaveDay = weekday && evs.some((ev) => ev.allDay && (proj(eventProject(ev).pid) || {}).fullDay);
+  const isRemoved = (ev) => !!(state.removed || {})['ev:' + ev.id];
+  const leaveDay = weekday && evs.some((ev) => ev.allDay && !isRemoved(ev) && (proj(eventProject(ev).pid) || {}).fullDay);
   for (const ev of evs) {
+    // Verwijderd: telt niet mee, blijft alleen als omtrek zichtbaar zodat je hem kunt terugzetten.
+    if (isRemoved(ev)) {
+      const item = { kind: 'cal', ev, pid: null, how: '', title: ev.title || '(geen titel)', ref: ev, min: 0, removed: true };
+      if (ev.allDay) allDay.push({ ...item, s: ev.s, e: ev.e, allDay: true });
+      else blocks.push({ ...item, s: Math.max(ev.s, d0), e: Math.min(ev.e, d1) });
+      continue;
+    }
     const { pid, how } = eventProject(ev);
     if (ev.allDay) {
       const p = proj(pid);
@@ -724,9 +746,9 @@ function renderMonth() {
       const shown = ps.slice(0, 3);
       const bar = ps.map(([pid, min]) => `<span style="flex:${min};background:${projColor(pid)}"></span>`).join('')
         + (d.unassigned > 1 ? `<span style="flex:${d.unassigned};background:var(--orange);opacity:.5"></span>` : '');
-      const cls = ['mday', inMonth ? '' : 'other', i >= 5 ? 'wkend' : '', isCur && (S.weekend || i < 5) ? 'cur' : ''].join(' ');
+      const cls = ['mday', inMonth && !d.beforeStart ? '' : 'other', i >= 5 ? 'wkend' : '', isCur && (S.weekend || i < 5) ? 'cur' : ''].join(' ');
       html += `<div class="${cls}" data-openweek="${d.key}" title="${DAYS[i]} ${d.date.getDate()} ${MONTHS[d.date.getMonth()]}: week openen">
-        <div class="top1"><span class="dn ${d.key === todayKey ? 'today' : ''}">${d.date.getDate()}</span>${d.total ? `<span class="ht ${d.total >= full ? 'full' : ''}">${fmtHours(d.total / 60)} u</span>` : ''}</div>
+        <div class="top1"><span class="dn ${d.key === todayKey ? 'today' : ''}">${d.date.getDate()}</span>${d.key === startKey() ? '<span class="ht" style="color:var(--blue)">start</span>' : ''}${d.total ? `<span class="ht ${d.total >= full ? 'full' : ''}">${fmtHours(d.total / 60)} u</span>` : ''}</div>
         ${d.total || d.unassigned > 1 ? `<div class="mbar">${bar}</div>` : ''}
         ${shown.map(([pid, min]) => { const p = proj(pid); return `<div class="pr"><span class="sw" style="background:${projColor(pid)}"></span><span class="nm">${esc(p ? p.name : pid)}</span><span class="hv">${fmtHours(min / 60)}</span></div>`; }).join('')}
         ${ps.length > 3 ? `<div class="more">+${ps.length - 3} meer</div>` : ''}
@@ -777,9 +799,9 @@ function renderWeek() {
   html += `<div class="card grid" style="grid-template-columns:54px repeat(${nDays}, 1fr)">`;
   html += `<div class="dayhead" style="border-left:0"></div>`;
   days.forEach((d, i) => {
-    const allDays = d.allDay.map((b, j) => `<div class="allday" data-b="${i}:a${j}" style="border-left-color:${b.pid ? projColor(b.pid) : 'var(--unassigned)'}" title="${esc(b.title)}">${esc(b.title)}${b.min ? ' · ' + fmtHours(b.min / 60) + 'u' : ''}</div>`).join('');
+    const allDays = d.allDay.map((b, j) => `<div class="allday${b.removed ? ' rem' : ''}" data-b="${i}:a${j}" style="border-left-color:${b.removed ? '#b5bec8' : b.pid ? projColor(b.pid) : 'var(--unassigned)'}" title="${esc(b.title)}${b.removed ? ' (verwijderd)' : ''}">${esc(b.title)}${b.min ? ' · ' + fmtHours(b.min / 60) + 'u' : ''}</div>`).join('');
     html += `<div class="dayhead"><div class="d ${d.key === todayKey ? 'today' : ''}">${DAYS[i]} ${d.date.getDate()} ${MONTHS[d.date.getMonth()]}</div>
-      <div class="tot">${fmtHours(d.total / 60)} u${d.unassigned > 1 ? ` · <span class="open">${fmtHours(d.unassigned / 60)} open</span>` : ''}</div>
+      <div class="tot">${d.beforeStart ? 'voor startdatum' : fmtHours(d.total / 60) + ' u'}${d.unassigned > 1 ? ` · <span class="open">${fmtHours(d.unassigned / 60)} open</span>` : ''}</div>
       <button class="btn ghost sm add" data-add="${d.key}" title="Handmatig blok toevoegen">＋</button>
       ${allDays ? `<div class="alldays">${allDays}</div>` : ''}</div>`;
   });
@@ -788,17 +810,17 @@ function renderWeek() {
   html += `</div>`;
   gridH0 = h0;
   days.forEach((d, i) => {
-    html += `<div class="col" data-col="${d.key}" style="height:${height}px">`;
+    html += `<div class="col${d.beforeStart ? ' pre' : ''}" data-col="${d.key}" style="height:${height}px">`;
     html += `<div class="work" style="top:${top(d.ws, d)}px;height:${(d.we - d.ws) / MIN * PX}px"></div>`;
     for (let h = h0 + 1; h < h1; h++) html += `<div class="hl" style="top:${(h - h0) * 60 * PX}px"></div>`;
     if (d.key === todayKey) html += `<div class="now" style="top:${top(Date.now(), d)}px"></div>`;
     d.blocks.forEach((b, j) => {
       const t = top(b.s, d), hgt = Math.max(14, (b.e - b.s) / MIN * PX - 2);
       const w = 100 / b.lanes;
-      const cls = ['blk', b.kind === 'act' ? 'act' : '', !b.pid ? 'un' : '', b.pid === 'ignore' ? 'ign' : '', (b.outside && !b.min) || b.leaveDay ? 'out' : ''].join(' ');
+      const cls = ['blk', b.kind === 'act' ? 'act' : '', b.removed ? 'rem' : !b.pid ? 'un' : '', b.pid === 'ignore' ? 'ign' : '', (b.outside && !b.min) || b.leaveDay ? 'out' : ''].join(' ');
       const bg = b.pid && b.pid !== 'ignore' ? `background:${b.kind === 'act' ? `color-mix(in srgb, ${projColor(b.pid)} 38%, var(--panel));color:var(--ink)` : projColor(b.pid) + 'dd'};border-color:${projColor(b.pid)}` : '';
       const p = proj(b.pid);
-      const tag = b.kind === 'act' ? 'activiteit' : b.kind === 'manual' ? 'handmatig' : '';
+      const tag = b.removed ? 'verwijderd' : b.kind === 'act' ? 'activiteit' : b.kind === 'manual' ? 'handmatig' : '';
       const meta = `${fmtTime(b.s)}-${fmtTime(b.e)}${p && p.nr ? ' · ' + p.nr : ''}${b.kind === 'act' ? ' · ' + hm(b.min) : ''}`;
       const man = b.kind === 'manual' ? ` man" data-mid="${b.ref.id}` : '';
       html += `<div class="${cls}${man}" data-b="${i}:${j}" style="top:${t}px;height:${hgt}px;left:calc(${b.lane * w}% + 2px);width:calc(${w}% - 4px);${bg}" title="${esc(b.title)}">
@@ -848,6 +870,12 @@ function openCalDrawer(b) {
   const ev = b.ref;
   const c = calById(ev.cal) || {};
   const time = ev.allDay ? 'Hele dag' : `${fmtTime(ev.s)}-${fmtTime(ev.e)} (${hm((ev.e - ev.s) / MIN)})`;
+  if (b.removed) {
+    return openDrawer(ev.title || '(geen titel)', `
+      <div class="kv"><div>Tijd</div><div>${time}</div><div>Agenda</div><div>${esc(c.title || 'onbekend')}</div><div>Telt mee</div><div>0:00 (verwijderd)</div></div>
+      <p class="small muted">Deze afspraak staat nog in je agenda, maar telt niet mee in je uren en niet bij Inhalen. De gemeten activiteit vult die tijd weer op.</p>
+      <div class="actions"><button class="btn primary" data-act="restoreCal">Terugzetten</button></div>`);
+  }
   openDrawer(ev.title || '(geen titel)', `
     <div class="kv">
       <div>Tijd</div><div>${time}</div>
@@ -871,7 +899,9 @@ function openCalDrawer(b) {
       <div class="row" style="justify-content:flex-start;gap:6px">${[0.5, 1, 2, 3, 4].map((h) => `<button class="btn sm" style="flex:0" data-act="overtime" data-h="${h}">+${fmtHours(h)}u</button>`).join('')}</div></div>` : ''}
     <div class="actions">
       ${canAsk() ? `<button class="btn" data-act="askBlock">Weet ik niet: vraag ${esc(state.settings.askName)}</button>` : ''}
-    </div>`);
+    </div>
+    <div class="box"><h3>Klopt deze afspraak niet?</h3><p class="small muted" style="margin:0 0 8px">Bijvoorbeeld per ongeluk over meerdere dagen gesleept. Verwijderen haalt hem alleen uit je uren en uit Inhalen; je agenda blijft onaangeroerd.</p>
+      <button class="btn" data-act="removeCal">Verwijderen uit uren</button></div>`);
 }
 
 function saveCal() {
@@ -889,6 +919,19 @@ function saveCal() {
     state.assign['ev:' + ev.id] = pid;
   }
   save(); closeDrawer(); render(); toast('Opgeslagen');
+}
+function removeCal(ev) {
+  ev = ev || drawerCtx.b.ref;
+  state.removed = state.removed || {};
+  state.removed['ev:' + ev.id] = Date.now();
+  save(); closeDrawer(); render();
+  toast(`"${ev.title || 'Afspraak'}" telt niet meer mee`);
+}
+function restoreCal(ev) {
+  ev = ev || drawerCtx.b.ref;
+  delete (state.removed || {})['ev:' + ev.id];
+  save(); closeDrawer(); render();
+  toast(`"${ev.title || 'Afspraak'}" telt weer mee`);
 }
 function resetCal() {
   const ev = drawerCtx.b.ref;
@@ -1115,8 +1158,8 @@ function openUnknownDrawer(u) {
   openDrawer(u.title, `
     <p class="small muted" style="margin-top:0">${u.occ.length} keer, ${fmtHours(u.min / 60)} uur. Voorstellen per datum op basis van titel, klant, aanvangsdatum in AFAS, je eigen projecten en je Slack-activiteit. Er gebeurt pas iets als je klikt.</p>
     <div class="box"><h3>Alle ${u.occ.length} tegelijk</h3>${suggestButtons(suggest(u.title, parseKey(u.occ[u.occ.length - 1].date)), 'data-scope="all"')}${nrInput('data-scope="all"')}</div>
-    ${u.occ.map((o, i) => { const d = parseKey(o.date); return `<div class="box" style="background:transparent;border:1px solid var(--line)"><div style="margin-bottom:6px"><b>${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}</b> · ${fmtTime(o.ev.s)}-${fmtTime(o.ev.e)} · ${fmtHours(o.min / 60)} uur${o.slack ? `<div class="small muted">Slack: ${esc(o.slack)}</div>` : ''}</div>${suggestButtons(suggest(u.title, d), `data-scope="${i}"`)}${nrInput(`data-scope="${i}"`)}</div>`; }).join('')}
-    <div class="actions"><button class="btn sm" data-act="ignoreUnknown">Geen werk: negeren</button>${canAsk() ? `<button class="btn ghost sm" data-act="askUnknownOne">Lukt niet: vraag ${esc(state.settings.askName)}</button>` : ''}</div>`);
+    ${u.occ.map((o, i) => { const d = parseKey(o.date); return `<div class="box" style="background:transparent;border:1px solid var(--line)"><div style="margin-bottom:6px"><b>${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}</b> · ${fmtTime(o.ev.s)}-${fmtTime(o.ev.e)} · ${fmtHours(o.min / 60)} uur${o.slack ? `<div class="small muted">Slack: ${esc(o.slack)}</div>` : ''}</div>${suggestButtons(suggest(u.title, d), `data-scope="${i}"`)}${nrInput(`data-scope="${i}"`)}<button class="btn ghost sm" style="margin-top:6px" data-act="removeUnknown" data-i="${i}">Klopt niet: verwijderen uit uren</button></div>`; }).join('')}
+    <div class="actions"><button class="btn sm" data-act="ignoreUnknown">Geen werk: negeren</button><button class="btn sm" data-act="removeUnknown" data-i="all">Klopt niet: alles verwijderen</button>${canAsk() ? `<button class="btn ghost sm" data-act="askUnknownOne">Lukt niet: vraag ${esc(state.settings.askName)}</button>` : ''}</div>`);
 }
 function slackSummary(dateKey) {
   const d = (slackCtx.dagen || {})[dateKey];
@@ -1168,7 +1211,7 @@ function questionFrom(t) { return state.questions.find((q) => q.id === t.dataset
 // Rekent live over alle weken vanaf een startdatum: wat staat vast, wat is verlof, wat is nog onbekend.
 let catchupActs = null, catchupKey = '';
 async function loadCatchupActivity() {
-  const from = parseKey(state.settings.catchupFrom || dkey(addDays(week, -28)));
+  const from = parseKey(startKey() || state.settings.catchupFrom || dkey(addDays(week, -28)));
   const key = dkey(from) + '|' + dkey(new Date());
   if (catchupKey === key && catchupActs) return;
   catchupActs = await api(`/api/activity?from=${dkey(from)}&to=${dkey(new Date())}`);
@@ -1177,7 +1220,7 @@ async function loadCatchupActivity() {
 }
 function catchupData() {
   const S = state.settings;
-  const from = S.catchupFrom ? parseKey(S.catchupFrom) : addDays(mondayOf(new Date()), -28);
+  const from = startKey() ? parseKey(startKey()) : S.catchupFrom ? parseKey(S.catchupFrom) : addDays(mondayOf(new Date()), -28);
   const weeks = [], unknown = {};
   for (let m = mondayOf(from); m <= new Date(); m = addDays(m, 7)) {
     const wd = computeWeekAt(m, catchupActs || []);
@@ -1207,7 +1250,7 @@ function renderCatchup() {
   const sum = (k) => weeks.reduce((t, w) => t + w[k], 0);
   let html = `<div class="card section"><div class="row" style="flex-wrap:wrap;gap:12px;align-items:flex-end">
     <div style="flex:3"><h2>Inhalen in AFAS</h2><div class="muted small">Live berekend uit je agenda${catchupActs.length ? ' en meting' : ''}. Per week: wat vaststaat, wat verlof is, welke agendatijd nog geen project heeft, en hoeveel er nog leeg is tot ${S_weekHours()} uur.</div></div>
-    <div class="field" style="flex:0 0 160px;margin:0"><label>Vanaf</label><input type="date" data-sf="catchupFrom" value="${state.settings.catchupFrom || dkey(addDays(mondayOf(new Date()), -28))}"></div></div>
+    <div class="field" style="flex:0 0 160px;margin:0"><label>Startdatum</label><input type="date" data-sf="startDate" value="${startKey()}"><div class="small muted" style="margin-top:4px">${startKey() ? 'Alles daarvoor telt niet mee' : 'Leeg: laatste 4 weken'}</div></div></div>
     <div class="summary" style="margin-top:14px"><span class="chip total">Doel <b>${h(sum('target'))}</b></span><span class="chip">Vast <b>${h(sum('fixed'))}</b></span><span class="chip">Verlof <b>${h(sum('leave'))}</b></span><span class="chip warn">Agenda zonder project <b>${h(sum('open'))}</b></span><span class="chip">Nog leeg <b>${h(sum('rest'))}</b></span></div>
     <div style="overflow:auto"><table><thead><tr><th>Week</th><th>Van</th><th class="num">Vast</th><th class="num">Verlof</th><th class="num">Zonder project</th><th class="num">Nog leeg</th><th>Projecten</th><th></th></tr></thead><tbody>`;
   for (const w of weeks) {
@@ -1595,6 +1638,8 @@ function renderSettings() {
       <p class="small muted">Alles blijft lokaal in <code>${esc(status.dataDir || '~/Library/Application Support/UrenApp')}</code>. Wachtwoordmanagers worden zonder titel opgeslagen, querystrings uit URL's worden weggelaten. Na 5 minuten zonder muis of toetsenbord, of met een vergrendeld scherm, stopt het meten.</p>
     </div>
     <div class="card section"><h2>Rekenregels</h2>
+      <div class="field"><label>Startdatum</label><div class="row" style="gap:8px"><input type="date" data-sf="startDate" value="${startKey()}" style="flex:0 0 180px">${startKey() ? '<button class="btn sm" data-act="clearStart">Wissen</button>' : ''}</div>
+        <div class="small muted">Je agenda en gemeten activiteit worden pas vanaf deze dag uitgelezen; alles daarvoor telt niet mee en verdwijnt uit Inhalen. Er wordt niets gewist: zet je de datum eerder, dan komt het terug (de meter bewaart je agenda tot een half jaar terug).</div></div>
       <div class="row"><div class="field"><label>Werkdag begint</label><input type="time" data-sf="dayStart" value="${S.dayStart}"></div><div class="field"><label>Werkdag eindigt</label><input type="time" data-sf="dayEnd" value="${S.dayEnd}"></div></div>
       <div class="row"><div class="field"><label>Afronden per dag per project</label><select data-sf="rounding">${[[0.25, 'Kwartier (0,25)'], [0.5, 'Half uur (0,5)'], [0.1, 'Tiende uur (0,1)'], [0, 'Niet afronden']].map(([v, l]) => `<option value="${v}" ${Number(S.rounding) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label>Decimaalteken</label><select data-sf="decimal"><option value="," ${S.decimal === ',' ? 'selected' : ''}>Komma (7,5)</option><option value="." ${S.decimal === '.' ? 'selected' : ''}>Punt (7.5)</option></select></div></div>
@@ -1648,7 +1693,8 @@ document.addEventListener('click', async (e) => {
   }
   const act = t.dataset.act;
   const actions = {
-    saveCal, resetCal, assignAll, addRule, saveManual, deleteManual, importPaste, askBlock, openQuestions,
+    clearStart: () => { state.settings.startDate = ''; catchupActs = null; save(); render(); toast('Startdatum gewist: alles telt weer mee'); },
+    saveCal, resetCal, removeCal: () => removeCal(), restoreCal: () => restoreCal(), assignAll, addRule, saveManual, deleteManual, importPaste, askBlock, openQuestions,
     pickSuggest: () => pickFor(t.dataset.scope, t.dataset.nr),
     checkUpdate: async () => {
       const el = document.getElementById('updateResult'); if (el) el.textContent = 'Controleren…';
@@ -1662,6 +1708,14 @@ document.addEventListener('click', async (e) => {
         state.projects.splice(state.projects.length - 1, 0, { id: 'p' + r.nr, nr: r.nr, name: r.name || c.name || r.nr, admin: r.relatie || c.client || '', werksoort: r.werksoort || state.settings.defaultWerksoort || 'VIDEO', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true, source: 'afas-matrix' });
       }
       save(); render(); toast(`${rows.length} projecten geïmporteerd uit AFAS`);
+    },
+    removeUnknown: () => {
+      const u = drawerCtx.unknown;
+      const occ = t.dataset.i === 'all' ? u.occ : [u.occ[+t.dataset.i]];
+      state.removed = state.removed || {};
+      for (const o of occ) state.removed['ev:' + o.ev.id] = Date.now();
+      save(); closeDrawer(); render();
+      toast(occ.length > 1 ? `"${u.title}" verwijderd uit je uren` : 'Verwijderd uit je uren; staat nog als omtrek in de weekweergave');
     },
     ignoreUnknown: () => {
       const u = drawerCtx.unknown;
@@ -1769,7 +1823,7 @@ document.addEventListener('change', (e) => {
   if (t.dataset.sf) {
     const k = t.dataset.sf;
     state.settings[k] = t.type === 'checkbox' ? t.checked : t.type === 'number' || k === 'rounding' ? Number(t.value) : t.value;
-    save(); computeWeek(); if (k === 'catchupFrom') { catchupActs = null; render(); } return;
+    save(); computeWeek(); if (k === 'catchupFrom' || k === 'startDate') { catchupActs = null; render(); } return;
   }
   if (t.dataset.ownsrc !== undefined) {
     const src = t.dataset.ownsrc.toLowerCase();
@@ -1901,7 +1955,8 @@ function openCtx(x, y, target) {
     + (recent.length ? `<div class="hd">Recent</div>` + recent.map((p) => btn(p, false)).join('') + `<hr><div class="hd">Vaste posten</div>` : '')
     + items.map((p) => btn(p, true)).join('')
     + `<button data-ctxpid="ignore"><span class="sw" style="background:${projColor('ignore')}"></span>Negeren (privé / pauze)</button><hr>`
-    + `<button data-ctxother="1">Ander project…</button>`;
+    + `<button data-ctxother="1">Ander project…</button>`
+    + (target.kind === 'block' && target.b.kind === 'cal' ? `<hr><button data-ctxremove="1">Verwijderen uit uren</button>` : '');
   document.body.appendChild(el);
   const r = el.getBoundingClientRect();
   el.style.left = Math.min(x, innerWidth - r.width - 8) + 'px';
@@ -1915,6 +1970,7 @@ document.addEventListener('contextmenu', (e) => {
   if (blkEl) {
     e.preventDefault();
     const b = findBlock(blkEl.dataset.b);
+    if (b && b.removed) { openBlock(blkEl.dataset.b); return; }
     if (b) openCtx(e.clientX, e.clientY, { kind: 'block', b, ref: blkEl.dataset.b });
   } else if (col) {
     e.preventDefault();
@@ -1929,6 +1985,7 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('.ctxmenu button');
   if (!btn || !ctx) return;
   const t = ctx; closeCtx();
+  if (btn.dataset.ctxremove) { removeCal(t.b.ref); return; }
   if (btn.dataset.ctxother) {
     if (t.kind === 'new') openManualDrawer(null, t.date, { start: t.start, end: t.end });
     else openBlock(t.ref);
