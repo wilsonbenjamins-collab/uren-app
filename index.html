@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uren</title>
-<meta name="uren-web-version" content="2026.10.13.1">
+<meta name="uren-web-version" content="2026.10.13.2">
 <meta name="uren-min-app" content="2.0">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
@@ -55,6 +55,40 @@ b, strong { font-weight: var(--weight-semibold); }
 .tabs button.on { color: var(--primary); border-bottom-color: var(--primary); }
 .weeknav { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .weeknav .wk { min-width: 190px; text-align: center; color: var(--primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+
+/* Week of maand */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.seg button { border: 0; background: var(--panel); color: var(--muted); padding: 0 var(--space-3); min-height: 30px; font-weight: var(--weight-regular); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--primary); color: #fff; }
+.month { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); overflow: hidden; }
+.month .mh { padding: var(--space-2) var(--space-3); font-size: var(--text-xs); color: var(--muted); border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); }
+.month .mh:first-child { border-left: 0; }
+.month .mw { padding: var(--space-2); border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+.month .mw b { display: block; color: var(--primary); font-size: var(--text-sm); }
+.month .mw:hover { background: var(--accent-soft); }
+.month .mw .st { display: inline-block; margin-top: 4px; padding: 1px 5px; border-radius: var(--radius-sm); background: var(--panel-soft); color: var(--primary); }
+.month .mw .st.ok { background: rgba(23, 115, 91, .12); color: var(--green); }
+.mday { min-height: 112px; padding: 6px var(--space-2); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; transition: background var(--motion-fast) var(--ease); }
+.mday:hover { background: var(--accent-soft); }
+.mday.other { background: var(--panel-soft); }
+.mday.other > * { opacity: .5; }
+.mday.wkend { background: color-mix(in srgb, var(--panel-soft) 55%, var(--panel)); }
+.mday.cur { background: rgba(0, 0, 220, 0.04); }
+.month .mw.cur { box-shadow: inset 3px 0 0 var(--blue); }
+.mday .top1 { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
+.mday .dn { font-weight: var(--weight-semibold); color: var(--primary); font-variant-numeric: tabular-nums; }
+.mday .dn.today { background: var(--blue); color: #fff; border-radius: 999px; min-width: 22px; height: 22px; display: inline-grid; place-items: center; font-size: var(--text-xs); }
+.mday .ht { font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mday .ht.full { color: var(--primary); font-weight: var(--weight-semibold); }
+.mday .pr { display: flex; align-items: center; gap: 5px; font-size: var(--text-2xs); white-space: nowrap; min-width: 0; }
+.mday .pr .sw { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.mday .pr .nm { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.mday .pr .hv { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mday .open { font-size: var(--text-2xs); color: var(--orange); }
+.mday .more { font-size: var(--text-2xs); color: var(--muted); }
+.mbar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--panel-soft); margin-top: 2px; }
+@media (max-width: 760px) { .month { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); } .mday { min-height: 70px; padding: 4px; } .mday .pr, .mday .more { display: none; } }
 
 /* Knoppen */
 .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; border: 1px solid var(--line); background: var(--panel); padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--primary); font-weight: var(--weight-regular); white-space: nowrap; transition: border-color var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease); }
@@ -202,6 +236,7 @@ code { font-family: var(--mono); font-size: var(--text-xs); background: var(--pa
     <button data-tab="instellingen">Instellingen</button>
   </nav>
   <div class="weeknav">
+    <div class="seg" id="viewMode"><button data-mode="week">Week</button><button data-mode="maand">Maand</button></div>
     <button class="btn" id="prevWeek" title="Vorige week (←)">‹</button>
     <div class="wk" id="weekLabel"></div>
     <button class="btn" id="nextWeek" title="Volgende week (→)">›</button>
@@ -329,6 +364,9 @@ let activity = [];
 let status = { alive: false, agent: null };
 let week = mondayOf(new Date());
 let tab = 'week';
+let mode = (() => { try { return localStorage.getItem('uren-mode') === 'maand' ? 'maand' : 'week'; } catch { return 'week'; } })();
+let month = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let monthActs = null, monthKey = '';
 let weekData = null;
 
 let saveTimer;
@@ -599,7 +637,13 @@ function renderHeader() {
   const range = week.getMonth() === end.getMonth()
     ? `${week.getDate()} t/m ${end.getDate()} ${MONTHS[end.getMonth()]}`
     : `${week.getDate()} ${MONTHS[week.getMonth()]} t/m ${end.getDate()} ${MONTHS[end.getMonth()]}`;
-  document.getElementById('weekLabel').textContent = `Week ${wn} · ${range}`;
+  const monthMode = tab === 'week' && mode === 'maand';
+  document.getElementById('weekLabel').textContent = monthMode ? `${MONTHS_LONG[month.getMonth()][0].toUpperCase()}${MONTHS_LONG[month.getMonth()].slice(1)} ${month.getFullYear()}` : `Week ${wn} · ${range}`;
+  document.getElementById('viewMode').style.display = tab === 'week' ? '' : 'none';
+  document.querySelectorAll('#viewMode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+  document.getElementById('prevWeek').title = monthMode ? 'Vorige maand (←)' : 'Vorige week (←)';
+  document.getElementById('nextWeek').title = monthMode ? 'Volgende maand (→)' : 'Volgende week (→)';
+  document.getElementById('thisWeek').textContent = monthMode ? 'Deze maand' : 'Deze week';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.getElementById('calStamp').textContent = calData.exportedAt ? 'bijgewerkt ' + fmtTime(calData.exportedAt) : '';
 }
@@ -630,11 +674,73 @@ function render() {
   renderHeader();
   computeWeek();
   const v = document.getElementById('view');
-  if (tab === 'week') v.innerHTML = renderWeek();
+  if (tab === 'week') v.innerHTML = mode === 'maand' ? renderMonth() : renderWeek();
   else if (tab === 'rapport') v.innerHTML = renderReport();
   else if (tab === 'projecten') v.innerHTML = renderProjects();
   else if (tab === 'inhalen') v.innerHTML = renderCatchup();
   else v.innerHTML = renderSettings();
+}
+
+// ---------- Weergave: maand ----------
+// Overzicht als in een agenda: per dag de uren en de grootste projecten. Klik op een dag of week om die week te openen.
+function monthRange() {
+  const first = mondayOf(month);
+  const last = addDays(mondayOf(new Date(month.getFullYear(), month.getMonth() + 1, 0)), 6);
+  return { first, last };
+}
+async function loadMonthActivity(force) {
+  const { first, last } = monthRange();
+  const key = dkey(first) + '|' + dkey(last);
+  if (!force && key === monthKey && monthActs) return;
+  const acts = await api(`/api/activity?from=${dkey(first)}&to=${dkey(last)}`);
+  acts.sort((a, b) => a.s - b.s);
+  monthActs = acts; monthKey = key;
+}
+function renderMonth() {
+  const { first, last } = monthRange();
+  if (!monthActs || monthKey !== dkey(first) + '|' + dkey(last)) {
+    loadMonthActivity().then(render).catch(() => { monthActs = []; monthKey = dkey(first) + '|' + dkey(last); render(); });
+    return '<div class="card section">Maand laden…</div>';
+  }
+  const S = state.settings;
+  const todayKey = dkey(new Date());
+  const full = (S.fullDayHours || 8) * 60;
+  let monthTotal = 0, monthOpen = 0;
+  const monthTotals = {};
+  let html = `<div class="card month"><div class="mh"></div>${DAYS.map((d) => `<div class="mh">${d}</div>`).join('')}`;
+  for (let m = first; m <= last; m = addDays(m, 7)) {
+    const wd = computeWeekAt(m, monthActs);
+    const w = isoWeek(m), wid = `${w.year}-W${pad(w.week)}`;
+    const st = state.reported[wid] ? '<span class="st ok">ingevoerd</span>' : (state.closed || {})[wid] ? '<span class="st">afgesloten</span>' : '';
+    const isCur = dkey(m) === dkey(week);
+    html += `<div class="mw${isCur ? ' cur' : ''}" data-openweek="${dkey(m)}" title="Week ${w.week} openen"><b>W${w.week}</b>${fmtHours(wd.total / 60)} u${st ? '<br>' + st : ''}</div>`;
+    wd.days.forEach((d, i) => {
+      const inMonth = d.date.getMonth() === month.getMonth();
+      if (inMonth) {
+        monthTotal += d.total; monthOpen += d.unassigned;
+        for (const [pid, min] of Object.entries(d.totals)) monthTotals[pid] = (monthTotals[pid] || 0) + min;
+      }
+      const ps = Object.entries(d.totals).sort((a, b) => b[1] - a[1]);
+      const shown = ps.slice(0, 3);
+      const bar = ps.map(([pid, min]) => `<span style="flex:${min};background:${projColor(pid)}"></span>`).join('')
+        + (d.unassigned > 1 ? `<span style="flex:${d.unassigned};background:var(--orange);opacity:.5"></span>` : '');
+      const cls = ['mday', inMonth ? '' : 'other', i >= 5 ? 'wkend' : '', isCur && (S.weekend || i < 5) ? 'cur' : ''].join(' ');
+      html += `<div class="${cls}" data-openweek="${d.key}" title="${DAYS[i]} ${d.date.getDate()} ${MONTHS[d.date.getMonth()]}: week openen">
+        <div class="top1"><span class="dn ${d.key === todayKey ? 'today' : ''}">${d.date.getDate()}</span>${d.total ? `<span class="ht ${d.total >= full ? 'full' : ''}">${fmtHours(d.total / 60)} u</span>` : ''}</div>
+        ${d.total || d.unassigned > 1 ? `<div class="mbar">${bar}</div>` : ''}
+        ${shown.map(([pid, min]) => { const p = proj(pid); return `<div class="pr"><span class="sw" style="background:${projColor(pid)}"></span><span class="nm">${esc(p ? p.name : pid)}</span><span class="hv">${fmtHours(min / 60)}</span></div>`; }).join('')}
+        ${ps.length > 3 ? `<div class="more">+${ps.length - 3} meer</div>` : ''}
+        ${d.unassigned > 1 ? `<div class="open">${fmtHours(d.unassigned / 60)} u open</div>` : ''}
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  const chips = Object.entries(monthTotals).sort((a, b) => b[1] - a[1]).map(([pid, m]) => {
+    const p = proj(pid);
+    return `<span class="chip"><span class="sw" style="background:${projColor(pid)}"></span>${esc(p ? (p.nr ? p.nr + ' ' : '') + p.name : pid)} <b>${fmtHours(m / 60)}</b></span>`;
+  }).join('');
+  const sum = `<div class="summary"><span class="chip total">${MONTHS_LONG[month.getMonth()]} <b>${fmtHours(monthTotal / 60)}</b></span>${chips}${monthOpen > 1 ? `<span class="chip warn" style="cursor:default">Niet toegewezen <b>${fmtHours(monthOpen / 60)}</b></span>` : ''}</div>`;
+  return sum + html;
 }
 
 // ---------- Weergave: week ----------
@@ -1525,7 +1631,7 @@ document.addEventListener('click', async (e) => {
   if (t.id === 'jumpUn') { const el = document.querySelector('.blk.un'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.click(); } return; }
   if (t.dataset.b) { openBlock(t.dataset.b); return; }
   if (t.dataset.unkopen !== undefined) { e.preventDefault(); openUnknownDrawer(catchupData().unknown[+t.dataset.unkopen]); return; }
-  if (t.dataset.openweek) { tab = 'week'; gotoWeek(parseKey(t.dataset.openweek)); return; }
+  if (t.dataset.openweek) { tab = 'week'; setMode('week'); gotoWeek(parseKey(t.dataset.openweek)); return; }
   if (t.dataset.add) { openManualDrawer(null, t.dataset.add); return; }
   if (t.dataset.copy !== undefined) { copyText(t.dataset.copy, `Gekopieerd: ${t.dataset.copy || '(leeg)'}`); return; }
   if (t.dataset.copyrow) {
@@ -1843,16 +1949,25 @@ document.addEventListener('click', (e) => {
 });
 document.getElementById('dClose').onclick = closeDrawer;
 async function gotoWeek(d) { week = mondayOf(d); renderHeader(); await loadActivity(); render(); }
-document.getElementById('prevWeek').onclick = () => gotoWeek(addDays(week, -7));
-document.getElementById('nextWeek').onclick = () => gotoWeek(addDays(week, 7));
-document.getElementById('thisWeek').onclick = () => gotoWeek(new Date());
+function setMode(m) {
+  mode = m;
+  try { localStorage.setItem('uren-mode', m); } catch {}
+  if (m === 'maand') { const t = addDays(week, 3); month = new Date(t.getFullYear(), t.getMonth(), 1); }
+}
+const monthMode = () => tab === 'week' && mode === 'maand';
+function gotoMonth(d) { month = new Date(d.getFullYear(), d.getMonth(), 1); render(); }
+function step(n) { if (monthMode()) gotoMonth(new Date(month.getFullYear(), month.getMonth() + n, 1)); else gotoWeek(addDays(week, 7 * n)); }
+document.getElementById('prevWeek').onclick = () => step(-1);
+document.getElementById('nextWeek').onclick = () => step(1);
+document.getElementById('thisWeek').onclick = () => { if (monthMode()) gotoMonth(new Date()); else gotoWeek(new Date()); };
+document.getElementById('viewMode').onclick = (e) => { const b = e.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return; closeDrawer(); setMode(b.dataset.mode); render(); };
 document.getElementById('refresh').onclick = async () => {
   const btn = document.getElementById('refresh');
   btn.classList.add('busy');
   const before = calData.events.length;
   let ok = false;
   try { ok = (await api('/api/refresh', { method: 'POST' })).ok; } catch {}
-  await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), loadStatus()]);
+  await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), loadStatus(), monthMode() ? loadMonthActivity(true).catch(() => {}) : null]);
   btn.classList.remove('busy');
   render();
   if (!ok) return toast(status.alive ? 'De meter reageerde niet; probeer het zo nog eens' : 'De meter draait niet, dus de agenda kan niet ververst worden');
@@ -1862,8 +1977,8 @@ document.getElementById('refresh').onclick = async () => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeDrawer();
   if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-  if (e.key === 'ArrowLeft') gotoWeek(addDays(week, -7));
-  if (e.key === 'ArrowRight') gotoWeek(addDays(week, 7));
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
 });
 
 async function boot() {
@@ -1876,7 +1991,7 @@ async function boot() {
   setInterval(async () => {
     if (document.getElementById('drawer').classList.contains('open')) return;
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {})]);
+    await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), monthMode() ? loadMonthActivity(true).catch(() => {}) : null]);
     render();
   }, 60000);
 }
