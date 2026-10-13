@@ -1,0 +1,1886 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uren</title>
+<meta name="uren-web-version" content="2026.10.13.1">
+<meta name="uren-min-app" content="2.0">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Huisstijl overgenomen van PPM Board (docs/HUISSTIJL.md): licht, rustig, Montserrat, dunne bediening. */
+:root {
+  color-scheme: light;
+  --background: #f6f7f5;
+  --foreground: #11152a;
+  --primary: #000031;
+  --muted: #68717d;
+  --line: #dfe8e8;
+  --panel: #ffffff;
+  --panel-soft: #eef2f2;
+  --blue: #0000dc;
+  --green: #17735b;
+  --orange: #ff4600;
+  --rose: #d4145a;
+  --shadow: 0 12px 34px rgba(0, 0, 49, 0.06);
+  --font-ui: "Montserrat", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --text-2xs: 11px; --text-xs: 12px; --text-sm: 13px; --text-base: 14px; --text-md: 15px; --text-lg: 18px; --text-xl: 22px;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-pill: 999px;
+  --motion-fast: 120ms; --motion-normal: 180ms; --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Namen die de app-code gebruikt, gekoppeld aan de PPM-tokens */
+  --bg: var(--background); --ink: var(--foreground); --ink-2: var(--muted); --ink-3: #9aa3ad;
+  --line-2: var(--panel-soft); --accent: var(--blue); --accent-soft: rgba(0, 0, 220, 0.08);
+  --ok: var(--green); --warn: var(--orange); --warn-soft: rgba(255, 70, 0, 0.1); --bad: var(--rose);
+  --unassigned: #9aa3ad; --radius: var(--radius-lg); --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-ui); font-size: var(--text-base); font-weight: var(--weight-regular); line-height: 1.45; }
+button, input, select, textarea { font: inherit; color: inherit; }
+input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
+button { cursor: pointer; }
+b, strong { font-weight: var(--weight-semibold); }
+
+/* 1. Applicatiebalk */
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-6); padding: 0 var(--space-6); min-height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { font-size: var(--text-lg); font-weight: var(--weight-bold); color: var(--primary); display: flex; align-items: center; gap: var(--space-2); letter-spacing: -0.01em; }
+.brand .dot { width: 10px; height: 10px; border-radius: var(--radius-sm); background: var(--primary); }
+.tabs { display: flex; gap: var(--space-5); align-self: stretch; }
+.tabs button { border: 0; background: transparent; padding: 0 2px; color: var(--muted); font-weight: var(--weight-regular); border-bottom: 2px solid transparent; white-space: nowrap; transition: color var(--motion-fast) var(--ease); }
+.tabs button:hover { color: var(--primary); }
+.tabs button.on { color: var(--primary); border-bottom-color: var(--primary); }
+.weeknav { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+.weeknav .wk { min-width: 190px; text-align: center; color: var(--primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+
+/* Knoppen */
+.btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; border: 1px solid var(--line); background: var(--panel); padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--primary); font-weight: var(--weight-regular); white-space: nowrap; transition: border-color var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease); }
+.btn:hover { border-color: var(--primary); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover { background: var(--blue); border-color: var(--blue); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover { color: var(--primary); background: var(--panel-soft); }
+.btn.danger { color: var(--rose); }
+.btn.sm { min-height: 28px; padding: 0 var(--space-2); font-size: var(--text-sm); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); background: var(--panel-soft); color: var(--muted); border: 0; }
+.pill .led { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.pill.on .led { background: var(--green); }
+.pill.paused .led { background: var(--orange); }
+#refresh.busy .spin { display: inline-block; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#refresh.busy { opacity: .7; pointer-events: none; }
+
+/* Inhoud */
+main { padding: var(--space-6) var(--space-6) 60px; max-width: 1500px; margin: 0 auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+.muted { color: var(--muted); }
+.small { font-size: var(--text-xs); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--primary); margin: 0 0 var(--space-1); line-height: 1.2; }
+h3 { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--foreground); margin: 0 0 var(--space-2); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Samenvatting */
+.summary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--line); font-size: var(--text-sm); }
+.chip .sw { width: 10px; height: 10px; border-radius: 2px; }
+.chip b { font-variant-numeric: tabular-nums; font-weight: var(--weight-semibold); }
+.chip.total { background: var(--primary); color: #fff; border-color: var(--primary); }
+.chip.warn { background: var(--warn-soft); border-color: transparent; color: var(--orange); cursor: pointer; }
+
+/* Weekraster */
+.grid { display: grid; overflow: hidden; }
+.dayhead { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); min-height: 64px; position: relative; }
+.dayhead .d { font-weight: var(--weight-semibold); color: var(--primary); }
+.dayhead .d.today { color: var(--blue); }
+.dayhead .tot { font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.dayhead .open { color: var(--orange); }
+.dayhead .add { position: absolute; right: 6px; top: 6px; opacity: .55; }
+.dayhead:hover .add { opacity: 1; }
+.alldays { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; }
+.allday { font-size: var(--text-2xs); padding: 2px 6px; border-radius: var(--radius-sm); background: var(--panel-soft); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--unassigned); }
+.gutter { position: relative; border-right: 1px solid var(--line); }
+.gutter .h { position: absolute; right: 6px; font-size: var(--text-2xs); color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.col { position: relative; border-left: 1px solid var(--line); }
+.col .hl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--panel-soft); }
+.col .work { position: absolute; left: 0; right: 0; background: rgba(0, 0, 220, 0.025); }
+.col .now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--rose); z-index: 5; }
+.blk { position: absolute; border-radius: var(--radius-md); padding: 3px 6px; font-size: var(--text-xs); line-height: 1.25; overflow: hidden; cursor: pointer; border: 1px solid rgba(0, 0, 49, .08); color: var(--foreground); transition: box-shadow var(--motion-fast) var(--ease); }
+.blk:hover { box-shadow: 0 0 0 2px var(--blue); z-index: 4; }
+.blk .t { font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk .m { color: rgba(17, 21, 42, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.blk.un { background: repeating-linear-gradient(135deg, #eef2f2 0 6px, #f8faf9 6px 12px); border: 1px dashed #b5bec8; }
+.blk.ign { background: var(--panel-soft) !important; color: var(--muted); }
+.blk.act { border-style: dashed; border-width: 1.5px; }
+.blk.act.un { border-color: var(--orange); background: repeating-linear-gradient(135deg, rgba(255,70,0,.08) 0 6px, rgba(255,70,0,.03) 6px 12px); }
+.blk.out { opacity: .5; }
+.blk.man { cursor: grab; touch-action: none; }
+.blk.man.dragging { cursor: grabbing; opacity: .85; box-shadow: 0 6px 18px rgba(0, 0, 49, .18); z-index: 6; }
+.blk .resz { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+.col { touch-action: pan-y; }
+.drag-ghost { position: absolute; left: 2px; right: 2px; border-radius: var(--radius-md); background: var(--accent-soft); border: 1.5px dashed var(--blue); color: var(--blue); font-size: var(--text-xs); padding: 3px 6px; pointer-events: none; z-index: 6; font-variant-numeric: tabular-nums; }
+.ctxmenu { position: fixed; z-index: 70; min-width: 260px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 12px 34px rgba(0, 0, 49, .14); padding: var(--space-1); }
+.ctxmenu .hd { font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 10px 4px; }
+.ctxmenu button { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--foreground); }
+.ctxmenu button:hover, .ctxmenu button:focus { background: var(--panel-soft); outline: none; }
+.ctxmenu .sw { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 10px; }
+.ctxmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.kstep { display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--panel-soft); }
+.kstep:last-child { border-bottom: 0; }
+.kstep .led { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+.kstep .opts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); }
+.kstep .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-2) var(--space-3); margin-top: var(--space-2); }
+.blk .tag { display: inline-block; font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .06em; font-weight: var(--weight-regular); color: var(--muted); margin-right: 4px; }
+
+/* Drawer */
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100vw); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -12px 0 34px rgba(0, 0, 49, .08); transform: translateX(105%); transition: transform var(--motion-normal) var(--ease); z-index: 40; display: flex; flex-direction: column; }
+#drawer.open { transform: none; }
+#drawer .dh { padding: var(--space-4) var(--space-5) var(--space-3); border-bottom: 1px solid var(--line); display: flex; gap: var(--space-3); align-items: flex-start; }
+#drawer .dh h2 { flex: 1; word-break: break-word; min-width: 0; }
+#dClose { flex: 0 0 auto; width: 32px; justify-content: center; padding: 0; font-size: var(--text-md); }
+#drawer .db { padding: var(--space-4) var(--space-5) var(--space-8); overflow: auto; flex: 1; }
+.field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
+.field label, .lbl { font-size: var(--text-xs); color: var(--muted); font-weight: var(--weight-regular); }
+input[type=text], input[type=search], input[type=time], input[type=date], input[type=number], select, textarea { border: 1px solid var(--line); background: var(--panel); color: var(--foreground); border-radius: var(--radius-md); padding: 0 var(--space-2); min-height: 32px; width: 100%; }
+textarea { resize: vertical; min-height: 60px; padding: var(--space-2); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outline-offset: -1px; border-color: var(--blue); }
+.row { display: flex; gap: var(--space-2); align-items: center; }
+.row > * { flex: 1; }
+.check { display: flex; gap: var(--space-2); align-items: flex-start; margin: 6px 0; }
+.check input { margin-top: 3px; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-sm); margin-bottom: var(--space-4); }
+.kv div:nth-child(odd) { color: var(--muted); }
+.grp { display: grid; grid-template-columns: 1fr 52px 170px; gap: var(--space-2); align-items: center; padding: 7px 0; border-bottom: 1px solid var(--panel-soft); }
+.grp .main { font-weight: var(--weight-semibold); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp .sub { font-size: var(--text-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp .min { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--text-xs); color: var(--muted); }
+.grp select { font-size: var(--text-xs); }
+.box { background: var(--panel-soft); border-radius: var(--radius-lg); padding: var(--space-3); margin: var(--space-3) 0; }
+.actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
+.nrresults { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-1); }
+.nrresults button { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-md); padding: 6px var(--space-2); font-size: var(--text-sm); }
+.nrresults button:hover { border-color: var(--blue); background: var(--accent-soft); }
+
+/* Tabellen */
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: var(--text-xs); color: var(--muted); font-weight: var(--weight-semibold); background: transparent; border-bottom-color: var(--line); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num.cp { cursor: copy; }
+td.num.cp:hover { background: var(--accent-soft); }
+tr.tot td { font-weight: var(--weight-semibold); border-top: 2px solid var(--line); }
+tr.unrow td { color: var(--orange); }
+.projtable td { padding: 5px 6px; }
+.swatch { width: 30px; height: 28px; border: 0; padding: 0; background: none; }
+.section { padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+.banner { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--warn-soft); color: var(--foreground); border-left: 3px solid var(--orange); margin-bottom: var(--space-3); display: flex; gap: var(--space-3); align-items: center; }
+.banner.okb { background: rgba(23, 115, 91, .1); border-left-color: var(--green); }
+.stat { display: flex; gap: var(--space-2); align-items: center; margin: var(--space-1) 0; }
+.stat .led { width: 8px; height: 8px; border-radius: 50%; }
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--primary); color: #fff; padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); transition: transform var(--motion-normal) var(--ease); z-index: 60; font-size: var(--text-sm); }
+#toast.on { transform: translateX(-50%); }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+code { font-family: var(--mono); font-size: var(--text-xs); background: var(--panel-soft); padding: 1px 5px; border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+@media (max-width: 760px) { .top { padding: var(--space-2) var(--space-4); gap: var(--space-3); } main { padding: var(--space-4); } .tabs { overflow-x: auto; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="dot"></span>Uren</div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="week" class="on">Week</button>
+    <button data-tab="rapport">AFAS-rapport</button>
+    <button data-tab="projecten">Projecten</button>
+    <button data-tab="inhalen">Inhalen</button>
+    <button data-tab="instellingen">Instellingen</button>
+  </nav>
+  <div class="weeknav">
+    <button class="btn" id="prevWeek" title="Vorige week (←)">‹</button>
+    <div class="wk" id="weekLabel"></div>
+    <button class="btn" id="nextWeek" title="Volgende week (→)">›</button>
+    <button class="btn" id="thisWeek">Deze week</button>
+    <button class="btn" id="refresh" title="Agenda en activiteit opnieuw inlezen"><span class="spin">↻</span> Agenda verversen</button>
+    <span class="small muted" id="calStamp"></span>
+  </div>
+  <button class="pill" id="agentPill"><span class="led"></span><span>Meter…</span></button>
+</header>
+<main id="view"></main>
+<aside id="drawer"><div class="dh"><h2 id="dTitle"></h2><button class="btn ghost" id="dClose">✕</button></div><div class="db" id="dBody"></div></aside>
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ---------- Hulpjes ----------
+const MIN = 6e4;
+const pad = (n) => String(n).padStart(2, '0');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dkey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseKey = (k) => new Date(k + 'T00:00:00');
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const fmtTime = (ms) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const hm = (min) => { const m = Math.round(min); return `${Math.floor(m / 60)}:${pad(m % 60)}`; };
+const DAYS = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
+const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const MONTHS_LONG = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); }
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return { year: t.getUTCFullYear(), week: Math.ceil(((t - y0) / 864e5 + 1) / 7) };
+}
+function at(date, hhmm) { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h || 0, m || 0).getTime(); }
+function host(u) { try { return new URL(u).host.replace(/^www\./, ''); } catch { return ''; } }
+const uid = () => Math.random().toString(36).slice(2, 9);
+async function api(url, opts) { const r = await fetch(url, opts); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
+async function copyText(text, msg) { try { await navigator.clipboard.writeText(text); toast(msg || 'Gekopieerd'); } catch { toast('Kopiëren lukte niet'); } }
+
+// ---------- Standaarddata ----------
+const PALETTE = ['#7aa2ff', '#f2a65a', '#6cc49a', '#e98aa9', '#b69cf2', '#62c6d4', '#e6c35c', '#9bb06a', '#f08a7a', '#8fa3b8'];
+// Nieuwe gebruikers beginnen met de vaste interne posten. Eigen projecten komen uit AFAS (importeren in Instellingen › Koppelingen).
+const DEFAULT_PROJECTS = [
+  { id: 'p000119', nr: '000119', name: 'Intern - Acquisitie', admin: 'Techonomy B.V.', werksoort: 'VIDEO', color: '#7aa2ff', keywords: 'acquisitie, pitch, offerte, voorstel, kennismaking', fullDay: false, active: true },
+  { id: 'p000565', nr: '000565', name: 'TVP - Overige producties/projecten', admin: 'Techonomy Video Production B.V.', werksoort: 'VIDEO', color: '#f2a65a', keywords: '', fullDay: false, active: true },
+  { id: 'p000621', nr: '000621', name: 'Indirect - Verlof en vrije dagen', admin: 'Techonomy B.V.', werksoort: 'VIDEO', color: '#6cc49a', keywords: 'verlof, vakantie, vrije dag', fullDay: true, active: true },
+  { id: 'p000622', nr: '000622', name: 'Indirect - Afwezig (ziek)', admin: 'Techonomy B.V.', werksoort: 'VIDEO', color: '#e98aa9', keywords: 'ziek', fullDay: true, active: true },
+  { id: 'p000753', nr: '000753', name: 'Intern - Overige werkzaamheden', admin: 'Techonomy B.V.', werksoort: 'VIDEO', color: '#b69cf2', keywords: 'intern overleg, teamoverleg, weekstart, administratie', fullDay: false, active: true },
+  { id: 'ignore', nr: '', name: 'Negeren (privé / pauze)', admin: '', werksoort: '', color: '#c9ced6', keywords: 'lunch, privé, prive', fullDay: false, active: true },
+];
+// Bij twijfel passen we niets toe: de vraag gaat naar een collega (Instellingen › Koppelingen), het antwoord wordt pas daarna een regel.
+const DEFAULT_QUESTIONS = [];
+const DEFAULT_SETTINGS = {
+  dayStart: '08:30', dayEnd: '18:00', weekend: false, rounding: 0.25, decimal: ',',
+  chunkGap: 10, minChunk: 2, fillGaps: true, countOutside: false, includeFree: false, fullDayHours: 8, weekHours: 40, catchupFrom: '',
+  placeholders: 'blok, nieuwe activiteit, new event', ownSources: '',
+  quickNrs: '000753, 000119, 000565, 000621, 000622', fillNr: '000753', defaultWerksoort: 'VIDEO',
+  askName: '', askSlack: '', updateUrl: 'https://raw.githubusercontent.com/wilsonbenjamins-collab/uren-app/main/index.html',
+};
+function defaultState() {
+  return { version: 1, projects: DEFAULT_PROJECTS.map((p) => ({ ...p })), calendarMap: {}, calendarsOff: {}, assign: {}, manual: [], settings: { ...DEFAULT_SETTINGS }, reported: {}, questions: [], migrations: ['niet-bsb', 'wilson-vrij', 'defaults-3', 'twijfel-1', 'placeholders-2'] };
+}
+function normalize(s) {
+  const d = defaultState();
+  if (!s || !Array.isArray(s.projects)) s = d;
+  const out = { ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) } };
+  if (!out.projects.some((p) => p.id === 'ignore')) out.projects.push(d.projects.find((p) => p.id === 'ignore'));
+  out.migrations = out.migrations || [];
+  if (!out.migrations.includes('update-url-1')) {
+    if (!out.settings.updateUrl) out.settings.updateUrl = DEFAULT_SETTINGS.updateUrl;
+    out.migrations.push('update-url-1');
+  }
+  if (!out.migrations.includes('niet-bsb')) {
+    const ign = out.projects.find((p) => p.id === 'ignore');
+    if (!kwList(ign).includes('niet bsb')) ign.keywords = (ign.keywords ? ign.keywords + ', ' : '') + 'niet bsb';
+    out.migrations.push('niet-bsb');
+  }
+  if (!out.migrations.includes('wilson-vrij')) {
+    const v = out.projects.find((p) => p.nr === '000621');
+    if (v && !kwList(v).includes('wilson vrij')) v.keywords = (v.keywords ? v.keywords + ', ' : '') + 'wilson vrij';
+    out.migrations.push('wilson-vrij');
+  }
+  if (!out.migrations.includes('defaults-3')) {
+    for (const dp of DEFAULT_PROJECTS) {
+      const p = out.projects.find((x) => x.id === dp.id);
+      if (!p) { out.projects.splice(out.projects.length - 1, 0, { ...dp }); continue; }
+      const have = kwList(p);
+      const add = kwList(dp).filter((k) => !have.includes(k));
+      if (add.length) p.keywords = [p.keywords, ...add].filter(Boolean).join(', ');
+    }
+    out.migrations.push('defaults-3');
+  }
+  if (!out.migrations.includes('twijfel-1')) {
+    // Eerder op gok toegepaste koppelingen terugdraaien; ze staan nu als vraag aan een collega.
+    const drop = { p001286: ['eten & welzijn', 'eten+welzijn', 'eten en welzijn', 'reservering lego-room voor opbouw'], p001165: ['bridge-animatie-2026', 'bridgie', 'bridge animatie'], p001279: ['destap', 'de stap'] };
+    for (const [id, kws] of Object.entries(drop)) {
+      const p = out.projects.find((x) => x.id === id);
+      if (!p) continue;
+      p.keywords = kwList(p).filter((k) => !kws.includes(k)).join(', ');
+      if (id === 'p001286') p.note = '';
+      if (id !== 'p001286' && !kwList(p).length && !Object.values(out.assign).includes(id)) out.projects = out.projects.filter((x) => x !== p);
+    }
+    out.migrations.push('twijfel-1');
+  }
+  if (!out.migrations.includes('placeholders-2')) {
+    const have = String(out.settings.placeholders || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    for (const t of ['nieuwe activiteit', 'new event']) if (!have.includes(t)) have.push(t);
+    out.settings.placeholders = have.join(', ');
+    out.migrations.push('placeholders-2');
+  }
+  out.questions = out.questions || [];
+  for (const q of DEFAULT_QUESTIONS) if (!out.questions.some((x) => x.id === q.id)) out.questions.push({ ...q });
+  out.calendarsSeen = out.calendarsSeen || {};
+  return out;
+}
+
+// ---------- Toestand ----------
+let state = defaultState();
+let calData = { calendars: [], events: [], exportedAt: 0 };
+let activity = [];
+let status = { alive: false, agent: null };
+let week = mondayOf(new Date());
+let tab = 'week';
+let weekData = null;
+
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch('/api/state', { method: 'PUT', body: JSON.stringify(state) }).catch(() => toast('Opslaan mislukt'));
+  }, 300);
+}
+
+const proj = (id) => state.projects.find((p) => p.id === id);
+const calById = (id) => calData.calendars.find((c) => c.id === id);
+const projColor = (id) => (proj(id) || {}).color || '#ccc';
+const projLabel = (id) => { const p = proj(id); return p ? (p.nr ? p.nr + ' ' : '') + p.name : 'Niet toegewezen'; };
+
+// ---------- Regels ----------
+function kwList(p) { return (p.keywords || '').split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 2); }
+function matchProject(text, nrOnlyText = '') {
+  text = String(text || '').toLowerCase();
+  const nrText = (text + ' ' + String(nrOnlyText || '')).toLowerCase();
+  let best = null, bestLen = 0;
+  for (const p of state.projects) {
+    if (p.active === false) continue;
+    for (const k of kwList(p)) if (k.length > bestLen && text.includes(k)) { best = p.id; bestLen = k.length; }
+    const nr = (p.nr || '').trim().toLowerCase();
+    if (nr.length >= 4 && nr.length > bestLen && nrText.includes(nr)) { best = p.id; bestLen = nr.length; }
+  }
+  return best;
+}
+const seriesOf = (ev) => ev.id.split('@')[0];
+// Verjaardagen horen nooit in de urenregistratie, uit welke agenda ze ook komen.
+const isBirthday = (ev) => /verjaardag|birthday|\bjarig\b/i.test(ev.title || '');
+function isPlaceholder(ev) {
+  const t = String(ev.title || '').trim().toLowerCase();
+  if (!t) return true; // naamloos agenda-item
+  return (state.settings.placeholders || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean).includes(t);
+}
+function eventProject(ev) {
+  const k1 = 'ev:' + ev.id, k2 = 'evs:' + seriesOf(ev);
+  if (k1 in state.assign) return { pid: state.assign[k1] || null, how: 'handmatig' };
+  if (k2 in state.assign) return { pid: state.assign[k2] || null, how: 'reeks' };
+  // Trefwoorden alleen op titel en locatie; in notities zoeken we alleen naar een exact AFAS-nummer.
+  const m = matchProject([ev.title, ev.loc].join(' '), ev.notes);
+  if (m) return { pid: m, how: 'regel' };
+  const c = state.calendarMap[ev.cal];
+  if (c) return { pid: c, how: 'agenda' };
+  return { pid: null, how: '' };
+}
+function segProject(seg) {
+  const k = 'seg:' + seg.s;
+  if (k in state.assign) return { pid: state.assign[k] || null, how: 'handmatig' };
+  const m = matchProject([seg.app, seg.title, seg.url, seg.doc].join(' '));
+  return m ? { pid: m, how: 'regel' } : { pid: null, how: '' };
+}
+function segLabel(seg) {
+  const h = host(seg.url);
+  if (h) return { key: seg.app + '|' + h + '|' + seg.title, main: seg.title || h, sub: seg.app + ' · ' + h };
+  if (seg.doc) { const parts = seg.doc.split('/'); return { key: seg.app + '|' + seg.doc, main: parts.pop(), sub: seg.app + ' · ' + parts.slice(-2).join('/') }; }
+  return { key: seg.app + '|' + seg.title, main: seg.title || seg.app, sub: seg.title ? seg.app : '' };
+}
+function keywordCandidates(seg) {
+  const out = [];
+  if (seg.title) out.push(seg.title);
+  const h = host(seg.url); if (h) out.push(h);
+  if (seg.url) { try { const u = new URL(seg.url); const p = u.pathname.split('/').filter(Boolean)[0]; if (p) out.push(h + '/' + p); } catch {} }
+  if (seg.doc) { const parts = seg.doc.split('/'); out.push(parts[parts.length - 1]); if (parts.length > 2) out.push(parts[parts.length - 2]); }
+  out.push(seg.app);
+  return [...new Set(out.filter(Boolean))];
+}
+
+// ---------- Intervalrekenen ----------
+function overlapLen(cov, s, e) { let t = 0; for (const [a, b] of cov) { if (b <= s) continue; if (a >= e) break; t += Math.min(b, e) - Math.max(a, s); } return t; }
+function coverAdd(cov, s, e) {
+  const eff = (e - s) - overlapLen(cov, s, e);
+  cov.push([s, e]);
+  cov.sort((x, y) => x[0] - y[0]);
+  for (let i = 0; i < cov.length - 1;) { if (cov[i + 1][0] <= cov[i][1]) { cov[i][1] = Math.max(cov[i][1], cov[i + 1][1]); cov.splice(i + 1, 1); } else i++; }
+  return eff;
+}
+function subtract(cov, s, e) {
+  const out = []; let c = s;
+  for (const [a, b] of cov) { if (b <= c) continue; if (a >= e) break; if (a > c) out.push([c, a]); c = Math.max(c, b); }
+  if (c < e) out.push([c, e]);
+  return out;
+}
+
+// ---------- Dagberekening ----------
+function computeDay(date, acts = activity) {
+  const S = state.settings;
+  const d0 = date.getTime(), d1 = addDays(date, 1).getTime();
+  let ws = at(date, S.dayStart), we = at(date, S.dayEnd);
+  const key = dkey(date);
+  const blocks = [], allDay = [], covered = [];
+  const totals = {}; let unassigned = 0;
+  const titles = {};
+  const add = (pid, min, title) => {
+    if (min <= 0) return;
+    if (!pid) { unassigned += min; return; }
+    if (pid === 'ignore') return;
+    totals[pid] = (totals[pid] || 0) + min;
+    if (title) { titles[pid] = titles[pid] || {}; titles[pid][title] = (titles[pid][title] || 0) + min; }
+  };
+
+  for (const m of state.manual.filter((m) => m.date === key)) {
+    const s = at(date, m.start), e = at(date, m.end);
+    if (e <= s) continue;
+    const eff = coverAdd(covered, s, e) / MIN;
+    blocks.push({ kind: 'manual', s, e, pid: m.projectId || null, how: 'handmatig', title: m.note || 'Handmatig blok', ref: m, min: eff });
+    add(m.projectId, eff, m.note);
+  }
+
+  const evs = calData.events
+    .filter((ev) => ev.e > d0 && ev.s < d1 && !state.calendarsOff[ev.cal] && ev.status !== 3 && ev.mine !== 3 && !isBirthday(ev))
+    .sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
+  const weekday = date.getDay() >= 1 && date.getDay() <= 5;
+  const allDayWork = [];
+  const leaveDay = weekday && evs.some((ev) => ev.allDay && (proj(eventProject(ev).pid) || {}).fullDay);
+  for (const ev of evs) {
+    const { pid, how } = eventProject(ev);
+    if (ev.allDay) {
+      const p = proj(pid);
+      const item = { kind: 'cal', ev, pid, how, title: ev.title || '(geen titel)', ref: ev, min: 0, s: ev.s, e: ev.e, allDay: true };
+      allDay.push(item);
+      if (p && p.fullDay) { item.min = weekday ? S.fullDayHours * 60 : 0; add(pid, item.min, ev.title); }
+      else if (weekday && pid !== 'ignore' && !isPlaceholder(ev)) allDayWork.push(item); // vult de dag aan, zie hieronder
+      continue;
+    }
+    if (ev.avail === 1 && !S.includeFree) continue;
+    if (isPlaceholder(ev)) continue; // placeholder: de gemeten activiteit vult deze tijd
+    const s = Math.max(ev.s, d0), e = Math.min(ev.e, d1);
+    const eff = leaveDay ? 0 : coverAdd(covered, s, e) / MIN;
+    blocks.push({ kind: 'cal', s, e, pid, how, title: ev.title || '(geen titel)', ref: ev, min: eff, leaveDay });
+    add(pid, eff, ev.title);
+  }
+
+  // Hele-dag-werkafspraak (draaidag, showcase, trip): vult de dag aan tot een volle werkdag, naast wat er al gepland stond.
+  const workAllDay = !leaveDay && allDayWork.length > 0;
+  if (workAllDay) {
+    let rest = Math.max(0, S.fullDayHours * 60 - (Object.values(totals).reduce((a, b) => a + b, 0) + unassigned));
+    for (const item of allDayWork) { item.min = rest; rest = 0; add(item.pid, item.min, item.title); }
+  }
+  // Lange dagen: loopt een werkblok (draaidag, avondevent) buiten je werktijd, dan schuift de werktijd van die dag mee.
+  for (const b of blocks) {
+    if (!b.min || b.pid === 'ignore' || b.leaveDay) continue;
+    ws = Math.min(ws, b.s); we = Math.max(we, b.e);
+  }
+  // Activiteit vult alleen de gaten tussen agenda- en handmatige blokken.
+  const pieces = [];
+  for (const seg of acts) {
+    if (leaveDay || workAllDay || !(seg.e > d0 && seg.s < d1)) continue;
+    for (const [s, e] of subtract(covered, Math.max(seg.s, d0), Math.min(seg.e, d1))) {
+      if (e - s < 1000) continue;
+      const mid = (s + e) / 2;
+      const { pid, how } = segProject(seg);
+      pieces.push({ s, e, seg, pid, how, outside: mid < ws || mid > we });
+    }
+  }
+  pieces.sort((a, b) => a.s - b.s);
+  const chunks = [];
+  let cur = null;
+  for (const p of pieces) {
+    if (cur && p.s - cur.e <= S.chunkGap * MIN && overlapLen(covered, cur.e, p.s) === 0 && cur.outside === p.outside) {
+      cur.pieces.push(p); cur.e = Math.max(cur.e, p.e);
+    } else {
+      cur = { pieces: [p], s: p.s, e: p.e, outside: p.outside };
+      chunks.push(cur);
+    }
+  }
+  for (const c of chunks) {
+    const active = c.pieces.reduce((t, p) => t + (p.e - p.s), 0) / MIN;
+    if (active < S.minChunk) continue;
+    const factor = S.fillGaps ? ((c.e - c.s) / MIN) / active : 1;
+    const by = {};
+    let counted = 0;
+    for (const p of c.pieces) {
+      const counts = !c.outside || S.countOutside || p.how === 'handmatig';
+      if (!counts) continue;
+      const min = ((p.e - p.s) / MIN) * factor;
+      by[p.pid || ''] = (by[p.pid || ''] || 0) + min;
+      counted += min;
+      add(p.pid, min, segLabel(p.seg).main);
+    }
+    const ranked = Object.entries(by).sort((a, b) => b[1] - a[1]);
+    let pid = ranked.length ? ranked[0][0] || null : null;
+    if (!ranked.length) {
+      const anyPid = {}; for (const p of c.pieces) anyPid[p.pid || ''] = (anyPid[p.pid || ''] || 0) + (p.e - p.s);
+      pid = Object.entries(anyPid).sort((a, b) => b[1] - a[1])[0][0] || null;
+    }
+    const labels = {};
+    for (const p of c.pieces) { const l = p.seg.app; labels[l] = (labels[l] || 0) + (p.e - p.s); }
+    const apps = Object.entries(labels).sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    blocks.push({ kind: 'act', s: c.s, e: c.e, pid, how: '', title: apps.slice(0, 3).join(', '), pieces: c.pieces, min: counted, active, outside: c.outside, mixed: ranked.length > 1, by });
+  }
+
+  layoutLanes(blocks);
+  const total = Object.values(totals).reduce((a, b) => a + b, 0);
+  return { date, key, blocks, allDay, totals, unassigned, total, titles, ws, we };
+}
+
+function layoutLanes(blocks) {
+  blocks.sort((a, b) => a.s - b.s || b.e - a.e);
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    const lanes = [];
+    for (const b of cluster) {
+      let i = lanes.findIndex((end) => end <= b.s);
+      if (i < 0) { i = lanes.length; lanes.push(0); }
+      lanes[i] = b.e; b.lane = i;
+    }
+    for (const b of cluster) b.lanes = lanes.length;
+  };
+  for (const b of blocks) {
+    if (b.s >= clusterEnd && cluster.length) { flush(); cluster = []; }
+    cluster.push(b); clusterEnd = Math.max(clusterEnd, b.e);
+  }
+  if (cluster.length) flush();
+}
+
+function computeWeek() {
+  weekData = computeWeekAt(week);
+  return weekData;
+}
+function computeWeekAt(monday, acts = activity) {
+  const days = [];
+  for (let i = 0; i < 7; i++) days.push(computeDay(addDays(monday, i), acts));
+  const totals = {}; let unassigned = 0;
+  for (const d of days) {
+    for (const [pid, m] of Object.entries(d.totals)) totals[pid] = (totals[pid] || 0) + m;
+    unassigned += d.unassigned;
+  }
+  return { days, totals, unassigned, total: Object.values(totals).reduce((a, b) => a + b, 0) };
+}
+
+// ---------- Laden ----------
+async function loadCalendar() {
+  calData = await api('/api/calendar');
+  // Nieuwe agenda's buiten je eigen account(s) en feestdag/verjaardag-agenda's staan standaard uit.
+  const own = (state.settings.ownSources || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+  let changed = false;
+  for (const c of calData.calendars) {
+    if (state.calendarsSeen[c.id]) continue;
+    state.calendarsSeen[c.id] = true; changed = true;
+    const notOwn = own.length && !own.includes(String(c.source || '').toLowerCase());
+    if (notOwn || /feestdag|holiday|birthday|verjaardag/i.test(c.title)) state.calendarsOff[c.id] = true;
+  }
+  if (changed) save();
+}
+async function loadActivity() {
+  activity = await api(`/api/activity?from=${dkey(week)}&to=${dkey(addDays(week, 6))}`);
+  activity.sort((a, b) => a.s - b.s);
+}
+let catalog = [], catalogUpdated = 0, slackCtx = { dagen: {} };
+const PAGE_VERSION = (document.querySelector('meta[name="uren-web-version"]') || {}).content || '';
+async function loadCatalog() {
+  try { const c = await api('/api/catalog'); catalog = c.projects || []; catalogUpdated = c.updatedAt || 0; } catch { catalog = []; }
+  renderCatList();
+  try { slackCtx = await api('/api/context'); } catch { slackCtx = { dagen: {} }; }
+}
+async function loadStatus() {
+  try { status = await api('/api/status'); } catch { status = { alive: false, agent: null }; }
+  renderPill();
+}
+
+// ---------- Weergave: kop ----------
+function renderHeader() {
+  const { week: wn } = isoWeek(week);
+  const end = addDays(week, 6);
+  const range = week.getMonth() === end.getMonth()
+    ? `${week.getDate()} t/m ${end.getDate()} ${MONTHS[end.getMonth()]}`
+    : `${week.getDate()} ${MONTHS[week.getMonth()]} t/m ${end.getDate()} ${MONTHS[end.getMonth()]}`;
+  document.getElementById('weekLabel').textContent = `Week ${wn} · ${range}`;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  document.getElementById('calStamp').textContent = calData.exportedAt ? 'bijgewerkt ' + fmtTime(calData.exportedAt) : '';
+}
+function renderUpdateNote() {
+  let n = document.getElementById('updateNote');
+  const newer = status.webVersion && PAGE_VERSION && status.webVersion !== PAGE_VERSION;
+  if (!newer) { if (n) n.remove(); return; }
+  if (!n) {
+    n = document.createElement('div'); n.id = 'updateNote';
+    n.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:65;background:var(--primary);color:#fff;padding:10px 14px;border-radius:var(--radius-md);box-shadow:var(--shadow);display:flex;gap:12px;align-items:center;font-size:var(--text-sm)';
+    document.body.appendChild(n);
+  }
+  n.innerHTML = `Nieuwe versie van Uren beschikbaar (${esc(status.webVersion)}). <button class="btn sm" onclick="location.reload()">Herladen</button>`;
+}
+function renderPill() {
+  renderUpdateNote();
+  const el = document.getElementById('agentPill');
+  const a = status.agent;
+  el.className = 'pill';
+  let text = 'Meter niet actief';
+  if (status.alive && a) {
+    if (a.paused) { el.classList.add('paused'); text = 'Meter gepauzeerd'; }
+    else { el.classList.add('on'); text = `Meter actief · ${hm((a.todaySeconds || 0) / 60)} vandaag`; }
+  }
+  el.querySelector('span:last-child').textContent = text;
+}
+function render() {
+  renderHeader();
+  computeWeek();
+  const v = document.getElementById('view');
+  if (tab === 'week') v.innerHTML = renderWeek();
+  else if (tab === 'rapport') v.innerHTML = renderReport();
+  else if (tab === 'projecten') v.innerHTML = renderProjects();
+  else if (tab === 'inhalen') v.innerHTML = renderCatchup();
+  else v.innerHTML = renderSettings();
+}
+
+// ---------- Weergave: week ----------
+const PX = 0.9; // pixels per minuut
+let gridH0 = 8; // eerste uur in het weekraster, nodig om een muispositie om te rekenen naar een tijd
+function renderWeek() {
+  const S = state.settings;
+  const nDays = S.weekend ? 7 : 5;
+  const days = weekData.days.slice(0, nDays);
+  const toH = (t) => { const [h, m] = t.split(':').map(Number); return h + (m || 0) / 60; };
+  let h0 = Math.floor(toH(S.dayStart)), h1 = Math.ceil(toH(S.dayEnd));
+  for (const d of days) for (const b of d.blocks) {
+    h0 = Math.min(h0, new Date(b.s).getHours());
+    const eh = (b.e - d.date.getTime()) / 36e5; h1 = Math.max(h1, Math.ceil(eh));
+  }
+  h0 = Math.max(0, h0); h1 = Math.min(24, Math.max(h1, h0 + 4));
+  const height = (h1 - h0) * 60 * PX;
+  const top = (ms, d) => ((ms - d.date.getTime()) / MIN - h0 * 60) * PX;
+
+  const chips = Object.entries(weekData.totals).sort((a, b) => b[1] - a[1]).map(([pid, m]) => {
+    const p = proj(pid);
+    return `<span class="chip"><span class="sw" style="background:${projColor(pid)}"></span>${esc(p ? (p.nr ? p.nr + ' ' : '') + p.name : pid)} <b>${fmtHours(m / 60)}</b></span>`;
+  }).join('');
+  const unChip = weekData.unassigned > 1 ? `<span class="chip warn" id="jumpUn">Niet toegewezen <b>${fmtHours(weekData.unassigned / 60)}</b></span>` : '';
+  let banner = '';
+  if (!status.alive) banner = `<div class="banner">De meter draait niet. Agenda en activiteit worden pas bijgewerkt als Uren draait. <button class="btn sm" data-goto="instellingen">Hoe zet ik hem aan?</button></div>`;
+  else if (status.agent && status.agent.calendar !== 'granted') banner = `<div class="banner">De meter heeft nog geen toegang tot je agenda. <button class="btn sm" data-goto="instellingen">Toestemming regelen</button></div>`;
+
+  if (calData.calendars.length && !ownList().length) banner += `<div class="banner">Kies eerst welke agenda's van jou zijn, anders tellen ook gedeelde en privé-agenda's mee. <button class="btn sm" data-goto="instellingen">Agenda's kiezen</button></div>`;
+  const openQ = (state.questions || []).filter((q) => q.status !== 'beantwoord');
+  if (openQ.length) banner += `<div class="banner">${openQ.length} ${openQ.length === 1 ? 'vraag' : 'vragen'} aan ${esc(state.settings.askName)} staan open. Tot er antwoord is, wordt daar niets automatisch op toegewezen. <button class="btn sm" data-act="openQuestions">Bekijk</button></div>`;
+  const todayKey = dkey(new Date());
+  let html = `${banner}<div class="summary"><span class="chip total">Totaal <b>${fmtHours(weekData.total / 60)}</b></span>${chips}${unChip}</div>`;
+  html += `<div class="card grid" style="grid-template-columns:54px repeat(${nDays}, 1fr)">`;
+  html += `<div class="dayhead" style="border-left:0"></div>`;
+  days.forEach((d, i) => {
+    const allDays = d.allDay.map((b, j) => `<div class="allday" data-b="${i}:a${j}" style="border-left-color:${b.pid ? projColor(b.pid) : 'var(--unassigned)'}" title="${esc(b.title)}">${esc(b.title)}${b.min ? ' · ' + fmtHours(b.min / 60) + 'u' : ''}</div>`).join('');
+    html += `<div class="dayhead"><div class="d ${d.key === todayKey ? 'today' : ''}">${DAYS[i]} ${d.date.getDate()} ${MONTHS[d.date.getMonth()]}</div>
+      <div class="tot">${fmtHours(d.total / 60)} u${d.unassigned > 1 ? ` · <span class="open">${fmtHours(d.unassigned / 60)} open</span>` : ''}</div>
+      <button class="btn ghost sm add" data-add="${d.key}" title="Handmatig blok toevoegen">＋</button>
+      ${allDays ? `<div class="alldays">${allDays}</div>` : ''}</div>`;
+  });
+  html += `<div class="gutter" style="height:${height}px">`;
+  for (let h = h0 + 1; h < h1; h++) html += `<div class="h" style="top:${(h - h0) * 60 * PX}px">${pad(h)}:00</div>`;
+  html += `</div>`;
+  gridH0 = h0;
+  days.forEach((d, i) => {
+    html += `<div class="col" data-col="${d.key}" style="height:${height}px">`;
+    html += `<div class="work" style="top:${top(d.ws, d)}px;height:${(d.we - d.ws) / MIN * PX}px"></div>`;
+    for (let h = h0 + 1; h < h1; h++) html += `<div class="hl" style="top:${(h - h0) * 60 * PX}px"></div>`;
+    if (d.key === todayKey) html += `<div class="now" style="top:${top(Date.now(), d)}px"></div>`;
+    d.blocks.forEach((b, j) => {
+      const t = top(b.s, d), hgt = Math.max(14, (b.e - b.s) / MIN * PX - 2);
+      const w = 100 / b.lanes;
+      const cls = ['blk', b.kind === 'act' ? 'act' : '', !b.pid ? 'un' : '', b.pid === 'ignore' ? 'ign' : '', (b.outside && !b.min) || b.leaveDay ? 'out' : ''].join(' ');
+      const bg = b.pid && b.pid !== 'ignore' ? `background:${b.kind === 'act' ? `color-mix(in srgb, ${projColor(b.pid)} 38%, var(--panel));color:var(--ink)` : projColor(b.pid) + 'dd'};border-color:${projColor(b.pid)}` : '';
+      const p = proj(b.pid);
+      const tag = b.kind === 'act' ? 'activiteit' : b.kind === 'manual' ? 'handmatig' : '';
+      const meta = `${fmtTime(b.s)}-${fmtTime(b.e)}${p && p.nr ? ' · ' + p.nr : ''}${b.kind === 'act' ? ' · ' + hm(b.min) : ''}`;
+      const man = b.kind === 'manual' ? ` man" data-mid="${b.ref.id}` : '';
+      html += `<div class="${cls}${man}" data-b="${i}:${j}" style="top:${t}px;height:${hgt}px;left:calc(${b.lane * w}% + 2px);width:calc(${w}% - 4px);${bg}" title="${esc(b.title)}">
+        <div class="t">${tag ? `<span class="tag">${tag}</span>` : ''}${esc(b.title)}</div>${hgt > 26 ? `<div class="m">${meta}</div>` : ''}${b.kind === 'manual' ? '<div class="resz" title="Sleep om de eindtijd te wijzigen"></div>' : ''}</div>`;
+    });
+    html += `</div>`;
+  });
+  html += `</div>`;
+  if (!calData.events.length && !activity.length) html += `<p class="muted small" style="margin-top:12px">Nog geen agenda of activiteit voor deze week. Zodra de meter loopt en toegang heeft, verschijnt hier alles vanzelf.</p>`;
+  return html;
+}
+const canAsk = () => !!(state.settings.askName && state.settings.askSlack);
+const fmtHours = (h) => (Math.round(h * 100) / 100).toFixed(2).replace(/\.?0+$/, '').replace('.', state.settings.decimal) || '0';
+
+// ---------- Lade ----------
+function openDrawer(title, body) {
+  document.getElementById('dTitle').textContent = title;
+  document.getElementById('dBody').innerHTML = body;
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); drawerCtx = null; }
+let drawerCtx = null;
+
+function projectOptions(sel) {
+  const ps = state.projects.filter((p) => p.active !== false && p.id !== 'ignore').sort((a, b) => (a.nr || '').localeCompare(b.nr || ''));
+  return `<option value="">Niet toegewezen</option>` + ps.map((p) => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nr)} ${esc(p.name)}</option>`).join('')
+    + `<option value="ignore" ${sel === 'ignore' ? 'selected' : ''}>Negeren (privé / pauze)</option>`;
+}
+const HOW = { handmatig: 'handmatig gekozen', reeks: 'hele reeks', regel: 'via trefwoord', agenda: 'via agenda-standaard', '': 'nog niet toegewezen' };
+
+function findBlock(ref) {
+  const [di, bi] = ref.split(':');
+  const d = weekData.days[+di];
+  return bi.startsWith('a') ? d.allDay[+bi.slice(1)] : d.blocks[+bi];
+}
+
+function openBlock(ref) {
+  const b = findBlock(ref);
+  if (!b) return;
+  drawerCtx = { b };
+  if (b.kind === 'cal') return openCalDrawer(b);
+  if (b.kind === 'manual') return openManualDrawer(b.ref);
+  return openActDrawer(b);
+}
+
+function openCalDrawer(b) {
+  const ev = b.ref;
+  const c = calById(ev.cal) || {};
+  const time = ev.allDay ? 'Hele dag' : `${fmtTime(ev.s)}-${fmtTime(ev.e)} (${hm((ev.e - ev.s) / MIN)})`;
+  openDrawer(ev.title || '(geen titel)', `
+    <div class="kv">
+      <div>Tijd</div><div>${time}</div>
+      <div>Agenda</div><div><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c.color || '#999'}"></span> ${esc(c.title || 'onbekend')}</div>
+      ${ev.loc ? `<div>Locatie</div><div>${esc(ev.loc)}</div>` : ''}
+      ${ev.attendees ? `<div>Deelnemers</div><div>${ev.attendees}${ev.organizer ? ' · organisator ' + esc(ev.organizer) : ''}</div>` : ''}
+      <div>Telt mee</div><div>${b.min ? hm(b.min) : '0:00'}${b.allDay && !b.min ? ' (hele-dag-afspraken tellen alleen bij projecten met "volle dag")' : ''}</div>
+      <div>Nu</div><div>${esc(projLabel(b.pid))} <span class="muted small">(${HOW[b.how]})</span></div>
+    </div>
+    ${ev.notes ? `<div class="box small" style="white-space:pre-wrap">${esc(ev.notes)}</div>` : ''}
+    <div class="box"><h3>${b.pid ? 'Ander project kiezen' : 'Voorstellen'}</h3>${suggestButtons(suggest(ev.title, new Date(ev.s)), 'data-scope="cal"')}${nrInput('data-scope="cal"')}</div>
+    <div class="field"><label>Project</label><select id="cProj">${projectOptions(b.pid)}</select></div>
+    <div class="check"><input type="checkbox" id="cSeries"><label for="cSeries">Geldt voor alle herhalingen van deze afspraak</label></div>
+    <div class="check"><input type="checkbox" id="cRule"><label for="cRule">Onthoud als regel: titel bevat</label></div>
+    <input type="text" id="cKw" value="${esc(ev.title || '')}" style="margin:-2px 0 8px 24px;width:calc(100% - 24px)">
+    <div class="actions">
+      <button class="btn primary" data-act="saveCal">Opslaan</button>
+      <button class="btn ghost" data-act="resetCal">Terug naar automatisch</button>
+    </div>
+    ${!ev.allDay ? `<div class="box"><h3>Liep het uit?</h3><p class="small muted" style="margin:0 0 8px">Voegt direct na ${fmtTime(ev.e)} een handmatig blok toe op het gekozen project.</p>
+      <div class="row" style="justify-content:flex-start;gap:6px">${[0.5, 1, 2, 3, 4].map((h) => `<button class="btn sm" style="flex:0" data-act="overtime" data-h="${h}">+${fmtHours(h)}u</button>`).join('')}</div></div>` : ''}
+    <div class="actions">
+      ${canAsk() ? `<button class="btn" data-act="askBlock">Weet ik niet: vraag ${esc(state.settings.askName)}</button>` : ''}
+    </div>`);
+}
+
+function saveCal() {
+  const ev = drawerCtx.b.ref;
+  const pid = document.getElementById('cProj').value;
+  noteRecent(pid);
+  const series = document.getElementById('cSeries').checked;
+  if (document.getElementById('cRule').checked && pid) {
+    addKeyword(pid, document.getElementById('cKw').value);
+    delete state.assign['ev:' + ev.id];
+  } else if (series) {
+    delete state.assign['ev:' + ev.id];
+    state.assign['evs:' + seriesOf(ev)] = pid;
+  } else {
+    state.assign['ev:' + ev.id] = pid;
+  }
+  save(); closeDrawer(); render(); toast('Opgeslagen');
+}
+function resetCal() {
+  const ev = drawerCtx.b.ref;
+  delete state.assign['ev:' + ev.id];
+  delete state.assign['evs:' + seriesOf(ev)];
+  save(); closeDrawer(); render();
+}
+function addKeyword(pid, kw) {
+  kw = String(kw || '').trim().replace(/,/g, ' ');
+  const p = proj(pid);
+  if (!p || kw.length < 2) return;
+  if (kwList(p).includes(kw.toLowerCase())) return;
+  p.keywords = (p.keywords ? p.keywords.replace(/[,\s]+$/, '') + ', ' : '') + kw;
+  toast(`Regel toegevoegd aan ${p.nr || p.name}: "${kw}"`);
+}
+
+function actGroups(b) {
+  const groups = {};
+  for (const p of b.pieces) {
+    const l = segLabel(p.seg);
+    const g = groups[l.key] || (groups[l.key] = { ...l, min: 0, pieces: [], pids: {} });
+    g.min += (p.e - p.s) / MIN;
+    g.pieces.push(p);
+    g.pids[p.pid || ''] = (g.pids[p.pid || ''] || 0) + 1;
+  }
+  return Object.values(groups).sort((a, b) => b.min - a.min).map((g) => ({ ...g, pid: Object.entries(g.pids).sort((a, b) => b[1] - a[1])[0][0] || '' }));
+}
+function openActDrawer(b) {
+  const groups = actGroups(b);
+  drawerCtx.groups = groups;
+  const cands = [...new Set(b.pieces.flatMap((p) => keywordCandidates(p.seg)))].slice(0, 40);
+  const top = groups[0];
+  const suggestion = top ? keywordCandidates(top.pieces[0].seg)[0] || '' : '';
+  openDrawer(`Activiteit ${fmtTime(b.s)}-${fmtTime(b.e)}`, `
+    <div class="kv">
+      <div>Actief</div><div>${hm(b.active)} gemeten${b.min && Math.abs(b.min - b.active) > 0.5 ? ` · telt als ${hm(b.min)} (korte pauzes meegeteld)` : ''}</div>
+      ${b.outside ? `<div>Let op</div><div>Buiten werktijd. Telt alleen mee als je het zelf toewijst.</div>` : ''}
+    </div>
+    <div class="field"><label>Hele blok toewijzen aan</label>
+      <div class="row"><select id="aAll">${projectOptions(b.mixed ? '' : (b.pid || ''))}</select><button class="btn" data-act="assignAll" style="flex:0">Toepassen</button></div>
+      ${canAsk() ? `<button class="btn sm" data-act="askBlock" style="margin-top:8px">Weet ik niet: vraag ${esc(state.settings.askName)}</button>` : ''}</div>
+    <div class="box"><h3>Hele blok naar een project zoeken</h3>${nrInput('data-scope="act"')}</div>
+    <h3 style="margin-top:18px">Waar je mee bezig was</h3>
+    ${groups.slice(0, 40).map((g, i) => `<div class="grp">
+      <div><div class="main" title="${esc(g.main)}">${esc(g.main)}</div><div class="sub" title="${esc(g.sub)}">${esc(g.sub)}</div></div>
+      <div class="min">${hm(g.min)}</div>
+      <select data-grp="${i}">${projectOptions(g.pid)}</select></div>`).join('')}
+    ${groups.length > 40 ? `<p class="muted small">+ ${groups.length - 40} kleinere items</p>` : ''}
+    <div class="box">
+      <h3>Regel maken</h3>
+      <p class="small muted" style="margin:0 0 8px">Alles waarvan de app, venstertitel, URL of bestandsnaam dit trefwoord bevat, gaat voortaan automatisch naar het gekozen project.</p>
+      <div class="field"><input type="text" id="aKw" list="aKwList" value="${esc(suggestion)}"><datalist id="aKwList">${cands.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      <div class="row"><select id="aKwProj">${projectOptions(b.pid || '')}</select><button class="btn" data-act="addRule" style="flex:0">Regel toevoegen</button></div>
+    </div>`);
+}
+function assignPieces(pieces, pid) { for (const p of pieces) state.assign['seg:' + p.seg.s] = pid; }
+function assignAll() {
+  assignPieces(drawerCtx.b.pieces, document.getElementById('aAll').value);
+  noteRecent(document.getElementById('aAll').value);
+  save(); closeDrawer(); render(); toast('Blok toegewezen');
+}
+function addRule() {
+  const pid = document.getElementById('aKwProj').value;
+  if (!pid) return toast('Kies eerst een project');
+  addKeyword(pid, document.getElementById('aKw').value);
+  save(); closeDrawer(); render();
+}
+
+function openManualDrawer(m, dateKey, pre) {
+  const isNew = !m;
+  m = m || { id: uid(), date: dateKey, start: (pre && pre.start) || state.settings.dayStart, end: (pre && pre.end) || addMinutes(state.settings.dayStart, 60), projectId: '', note: '' };
+  drawerCtx = { manual: m, isNew };
+  openDrawer(isNew ? 'Handmatig blok' : 'Handmatig blok bewerken', `
+    <p class="small muted" style="margin-top:0">Handmatige blokken gaan voor op agenda en gemeten activiteit. Handig voor werk dat je niet achter je Mac deed: een draaidag, reistijd, een telefoontje.</p>
+    <div class="field"><label>Datum</label><input type="date" id="mDate" value="${m.date}"></div>
+    <div class="row"><div class="field"><label>Van</label><input type="time" id="mStart" value="${m.start}"></div><div class="field"><label>Tot</label><input type="time" id="mEnd" value="${m.end}"></div></div>
+    <div class="field"><label>Project</label><select id="mProj">${projectOptions(m.projectId)}</select></div>
+    <div class="box" style="margin-top:0"><h3>Project zoeken</h3>${m.note ? suggestButtons(suggest(m.note, parseKey(m.date)), 'data-scope="manual"') : ''}${nrInput('data-scope="manual"')}</div>
+    <div class="field"><label>Omschrijving</label><input type="text" id="mNote" value="${esc(m.note)}" placeholder="bijv. Draaidag HANGR"></div>
+    <div class="actions"><button class="btn primary" data-act="saveManual">Opslaan</button>${isNew ? '' : '<button class="btn danger" data-act="deleteManual">Verwijderen</button>'}</div>`);
+}
+function addMinutes(hhmm, n) { const [h, m] = hhmm.split(':').map(Number); const t = Math.min(24 * 60 - 1, h * 60 + m + n); return `${pad(Math.floor(t / 60))}:${pad(t % 60)}`; }
+function saveManual() {
+  const m = drawerCtx.manual;
+  Object.assign(m, {
+    date: document.getElementById('mDate').value, start: document.getElementById('mStart').value, end: document.getElementById('mEnd').value,
+    projectId: document.getElementById('mProj').value, note: document.getElementById('mNote').value.trim(),
+  });
+  if (!m.date || !m.start || !m.end || m.end <= m.start) return toast('Controleer datum en tijden');
+  noteRecent(m.projectId);
+  if (drawerCtx.isNew) state.manual.push(m);
+  save(); closeDrawer(); render();
+}
+function deleteManual() {
+  state.manual = state.manual.filter((x) => x.id !== drawerCtx.manual.id);
+  save(); closeDrawer(); render();
+}
+
+// ---------- Voorstellen ----------
+// Stelt projecten voor op basis van titel, klant, aanvangsdatum in AFAS, je eigen projectlijst en je Slack-activiteit die dag.
+// Er wordt niets toegepast: pas een klik wijst toe.
+const ALIASES = [[/\bh7\b/g, 'healthy 7'], [/healthy7/g, 'healthy 7'], [/post ?nl/g, 'postnl'], [/kempenh\w*/g, 'kempenhaeghe'], [/\bsgc\b/g, 'sports gift card'], [/4 ?daagse/g, '4daagse'], [/destap|de stap/g, 'stap'], [/eten (en|&|\+) ?welzijn/g, 'eten+welzijn']];
+const STOP = new Set('voor met van het een de en in op aan bij naar over uit prep voorbereiding voorbereiden meeting call check incheck update blok werkblok focusblok studio opnames opname training gear care gearcare locatie bezoek draaidag nieuwe activiteit doorloop overleg intern online digitaal fysiek planning concept bespreking vervolg afbouw opbouw reservering uitloop'.split(' '));
+const GENERIC = new Set('video videos campagne campagnes content digitale ontwikkeling aflevering project projecten werkzaamheden marketing 2024 2025 2026 2027 techonomy intern'.split(' '));
+const normText = (t) => { let x = String(t || '').toLowerCase(); for (const [re, to] of ALIASES) x = x.replace(re, to); return x; };
+const words = (t) => normText(t).split(/[^a-z0-9+&]+/).filter((w) => w.length >= 3 && !STOP.has(w));
+function catDate(c) { const m = String(c.start || '').match(/(\d{2})-(\d{2})-(\d{4})/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; }
+function slackText(dateKey) {
+  const d = (slackCtx.dagen || {})[dateKey];
+  return d ? normText(d.kanalen.map((k) => k.kanaal + ' ' + k.onderwerp).join(' ')) : '';
+}
+function suggest(title, date, limit = 3) {
+  const ws = words(title).filter((w) => !GENERIC.has(w));
+  if (!ws.length) return [];
+  const own = new Set(state.projects.map((p) => p.nr).filter(Boolean));
+  const dk = dkey(date);
+  const sl = slackText(dk);
+  const around = (n) => { let t = ''; for (let i = -n; i <= n; i++) if (i) t += ' ' + slackText(dkey(addDays(date, i))); return t; };
+  const sl3 = around(3), sl14 = around(14);
+  const out = [];
+  for (const c of catalog) {
+    const name = normText(c.name), client = normText(c.client);
+    let score = 0;
+    for (const w of ws) { if (name.includes(w)) score += 3; else if (client.includes(w)) score += 2; }
+    if (!score) continue;
+    const why = [];
+    const st = catDate(c);
+    if (st) {
+      const days = (date - st) / 864e5;
+      if (days < -45) continue; // project bestond toen nog lang niet
+      if (days < 0) why.push('in AFAS aangemaakt op ' + c.start); // uren worden vaak met terugwerkende kracht geschreven
+      else if (days <= 365) { score += Math.max(0, 3 - days / 45); why.push('aanvang ' + c.start); }
+      else score -= 1;
+    }
+    if (own.has(c.nr)) { score += 2; why.push('in je lijst'); }
+    const mine = state.projects.find((p) => p.nr === c.nr);
+    const specific = [...new Set(words(c.name).concat(mine ? kwList(mine).map(normText) : []))].filter((w) => w.length >= 5 && !GENERIC.has(w) && !client.includes(w));
+    let hit;
+    if ((hit = specific.find((w) => sl.includes(w)))) { score += 4; why.push('Slack die dag: ' + hit); }
+    else if ((hit = specific.find((w) => sl3.includes(w)))) { score += 2; why.push('Slack die week: ' + hit); }
+    else if ((hit = specific.find((w) => sl14.includes(w)))) { score += 1; why.push('Slack in die periode: ' + hit); }
+    out.push({ nr: c.nr, name: c.name, client: c.client, score: Math.round(score * 10) / 10, why });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+function noteRecent(pid) {
+  if (!pid || pid === 'ignore') return;
+  state.recent = [pid].concat((state.recent || []).filter((x) => x !== pid)).slice(0, 12);
+}
+function ensureProject(nr) {
+  nr = String(nr || '').trim();
+  let p = state.projects.find((x) => x.nr === nr);
+  if (p) return p;
+  const c = catalog.find((x) => x.nr === nr);
+  if (!c) return null;
+  p = { id: 'p' + nr, nr, name: c.name, admin: c.client, werksoort: state.settings.defaultWerksoort || 'VIDEO', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true, source: 'catalog' };
+  state.projects.splice(state.projects.length - 1, 0, p);
+  return p;
+}
+function suggestButtons(list, attrs) {
+  if (!list.length) return '<div class="small muted">Geen voorstel gevonden. Typ hieronder een AFAS-nummer.</div>';
+  return list.map((sg, i) => `<button class="btn sm ${i === 0 ? 'primary' : ''}" style="text-align:left;white-space:normal;margin:0 6px 6px 0" data-act="pickSuggest" data-nr="${sg.nr}" ${attrs}><b class="mono">${sg.nr}</b> ${esc(sg.name)}<div class="small" style="opacity:.75">${esc(sg.why.join(' · ') || sg.client)}</div></button>`).join('');
+}
+const nrInput = (attrs) => `<div style="margin-top:4px"><div class="row"><input type="search" autocomplete="off" placeholder="Zoek op AFAS-nr of projectnaam" data-nrinput ${attrs}><button class="btn sm" data-act="pickNr" ${attrs} style="flex:0">Toewijzen</button></div><div class="small muted" data-nrhint style="margin-top:3px"></div><div class="nrresults" data-nrresults></div></div>`;
+function searchCatalog(q, limit = 8) {
+  const ws = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!ws.length) return [];
+  const own = new Set(state.projects.map((p) => p.nr).filter(Boolean));
+  return catalog.filter((c) => { const h = (c.nr + ' ' + c.name + ' ' + c.client).toLowerCase(); return ws.every((w) => h.includes(w)); })
+    .sort((a, b) => (own.has(b.nr) - own.has(a.nr)) || ((catDate(b) || 0) - (catDate(a) || 0))).slice(0, limit)
+    .map((c) => ({ ...c, own: own.has(c.nr) }));
+}
+const nrFrom = (v) => (String(v || '').match(/\b\d{6}\b/) || [''])[0];
+// Eén zoeklijst voor alle AFAS-projecten: eerst je eigen projecten, daarna de nieuwste.
+function renderCatList() {
+  let dl = document.getElementById('catList');
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'catList'; document.body.appendChild(dl); }
+  const own = new Set(state.projects.map((p) => p.nr).filter(Boolean));
+  const list = catalog.slice().sort((a, b) => (own.has(b.nr) - own.has(a.nr)) || ((catDate(b) || 0) - (catDate(a) || 0)));
+  dl.innerHTML = list.map((c) => `<option value="${c.nr} ${esc(c.name)}">${esc(c.client || '')}${c.start ? ' · ' + c.start : ''}${own.has(c.nr) ? ' · in je lijst' : ''}</option>`).join('');
+}
+function pickFor(scope, nr) {
+  nr = String(nr || '').trim();
+  if (!/^\d{6}$/.test(nr)) return toast('Kies een project uit de lijst of typ een AFAS-nummer van 6 cijfers');
+  if (scope === 'cal') {
+    if (assignEvents([drawerCtx.b.ref], nr)) { closeDrawer(); render(); }
+    return;
+  }
+  if (scope === 'manual') {
+    const p = ensureProject(nr);
+    if (!p) return toast(`Nummer ${nr} niet gevonden in de AFAS-catalogus`);
+    const sel = document.getElementById('mProj');
+    if (![...sel.options].some((o) => o.value === p.id)) sel.insertAdjacentHTML('beforeend', `<option value="${p.id}">${esc(p.nr)} ${esc(p.name)}</option>`);
+    sel.value = p.id;
+    if (drawerCtx.isNew) return toast(`${p.nr} gekozen. Klik Opslaan om het blok toe te voegen.`);
+    saveManual(); toast(`Blok toegewezen aan ${p.nr} ${p.name}`);
+    return;
+  }
+  if (scope === 'act') {
+    const p = ensureProject(nr);
+    if (!p) return toast(`Nummer ${nr} niet gevonden in de AFAS-catalogus`);
+    assignPieces(drawerCtx.b.pieces, p.id); noteRecent(p.id);
+    save(); closeDrawer(); render(); toast(`Blok toegewezen aan ${p.nr} ${p.name}`);
+    return;
+  }
+  const u = drawerCtx.unknown;
+  const evs = scope === 'all' ? u.occ.map((o) => o.ev) : [u.occ[+scope].ev];
+  if (!assignEvents(evs, nr)) return;
+  render();
+  const fresh = catchupData().unknown.find((x) => x.title.toLowerCase() === u.title.toLowerCase());
+  if (fresh) openUnknownDrawer(fresh); else closeDrawer();
+}
+function assignEvents(evs, nr) {
+  const p = ensureProject(nr);
+  if (!p) return toast(`Nummer ${nr} niet gevonden in de AFAS-catalogus`);
+  for (const ev of evs) state.assign['ev:' + ev.id] = p.id;
+  noteRecent(p.id);
+  save(); toast(`${evs.length > 1 ? evs.length + ' afspraken' : 'Afspraak'} toegewezen aan ${p.nr} ${p.name}`);
+  return p;
+}
+function openUnknownDrawer(u) {
+  drawerCtx = { unknown: u };
+  const same = suggest(u.title, parseKey(u.occ[0].date), 1)[0];
+  openDrawer(u.title, `
+    <p class="small muted" style="margin-top:0">${u.occ.length} keer, ${fmtHours(u.min / 60)} uur. Voorstellen per datum op basis van titel, klant, aanvangsdatum in AFAS, je eigen projecten en je Slack-activiteit. Er gebeurt pas iets als je klikt.</p>
+    <div class="box"><h3>Alle ${u.occ.length} tegelijk</h3>${suggestButtons(suggest(u.title, parseKey(u.occ[u.occ.length - 1].date)), 'data-scope="all"')}${nrInput('data-scope="all"')}</div>
+    ${u.occ.map((o, i) => { const d = parseKey(o.date); return `<div class="box" style="background:transparent;border:1px solid var(--line)"><div style="margin-bottom:6px"><b>${DAYS[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}</b> · ${fmtTime(o.ev.s)}-${fmtTime(o.ev.e)} · ${fmtHours(o.min / 60)} uur${o.slack ? `<div class="small muted">Slack: ${esc(o.slack)}</div>` : ''}</div>${suggestButtons(suggest(u.title, d), `data-scope="${i}"`)}${nrInput(`data-scope="${i}"`)}</div>`; }).join('')}
+    <div class="actions"><button class="btn sm" data-act="ignoreUnknown">Geen werk: negeren</button>${canAsk() ? `<button class="btn ghost sm" data-act="askUnknownOne">Lukt niet: vraag ${esc(state.settings.askName)}</button>` : ''}</div>`);
+}
+function slackSummary(dateKey) {
+  const d = (slackCtx.dagen || {})[dateKey];
+  return d ? d.kanalen.map((k) => `${k.kanaal} (${k.onderwerp})`).join('; ') : '';
+}
+
+// ---------- Vragen aan een collega ----------
+function askMessage(lines) {
+  const body = lines.length === 1 ? lines[0] : lines.map((l, i) => `${i + 1}. ${l}`).join('\n\n');
+  return `Hoi ${state.settings.askName}! Ik twijfel over het juiste AFAS-project:\n\n${body}\n\nDankjewel!`;
+}
+async function copyAndOpenSlack(text) {
+  try { await navigator.clipboard.writeText(text); } catch {}
+  window.open(state.settings.askSlack, '_blank');
+  toast('Bericht gekopieerd. Plak het in Slack (cmd+V) en verstuur.');
+}
+function askBlock() {
+  const b = drawerCtx.b;
+  const day = new Date(b.s);
+  const when = `${DAYS[(day.getDay() + 6) % 7].toLowerCase()} ${day.getDate()} ${MONTHS[day.getMonth()]}, ${fmtTime(b.s)}-${fmtTime(b.e)}`;
+  let text, kw;
+  if (b.kind === 'act') {
+    const g = actGroups(b)[0];
+    text = `Ik werkte ${when} aan "${g.main}" (${g.sub}). Op welk project schrijf ik die uren?`;
+    kw = keywordCandidates(g.pieces[0].seg)[0] || '';
+  } else {
+    text = `De afspraak "${b.title}" (${when}): op welk project schrijf ik die uren?`;
+    kw = b.title;
+  }
+  const q = { id: 'q-' + uid(), text, keywords: kw, suggest: '', status: 'gevraagd', ref: b.kind === 'cal' ? 'ev:' + b.ref.id : '' };
+  state.questions.push(q);
+  save(); closeDrawer(); render();
+  copyAndOpenSlack(askMessage([text]));
+}
+function openQuestions() {
+  drawerCtx = {};
+  const qs = state.questions.filter((q) => q.status !== 'beantwoord');
+  openDrawer(`Vragen aan ${state.settings.askName}`, `
+    <p class="small muted" style="margin-top:0">Bij twijfel past de app niets toe. Stuur de vraag, en kies het project zodra ${esc(state.settings.askName)} antwoordt. Dan wordt het een regel.</p>
+    ${qs.map((q) => `<div class="box"><div style="margin-bottom:8px">${esc(q.text)}</div>
+      ${q.keywords ? `<div class="small muted" style="margin-bottom:8px">Wordt een regel voor: ${esc(q.keywords)}</div>` : ''}
+      <div class="row"><select data-qans="${q.id}">${projectOptions(q.suggest || '')}</select><input type="text" class="mono" data-qnr="${q.id}" placeholder="of AFAS-nr" style="flex:0 0 105px"><button class="btn primary" data-act="answerQ" data-q="${q.id}" style="flex:0">Antwoord verwerken</button></div>
+      <div class="actions" style="margin-top:8px"><button class="btn sm" data-act="askQ" data-q="${q.id}">Kopieer vraag + open Slack</button><button class="btn sm ghost" data-act="dropQ" data-q="${q.id}">Vraag vervalt</button></div></div>`).join('') || '<p class="muted">Geen open vragen.</p>'}
+    ${qs.length > 1 ? `<button class="btn" data-act="askAll">Alle vragen in één bericht</button>` : ''}`);
+}
+function questionFrom(t) { return state.questions.find((q) => q.id === t.dataset.q); }
+
+// ---------- Weergave: inhalen ----------
+// Rekent live over alle weken vanaf een startdatum: wat staat vast, wat is verlof, wat is nog onbekend.
+let catchupActs = null, catchupKey = '';
+async function loadCatchupActivity() {
+  const from = parseKey(state.settings.catchupFrom || dkey(addDays(week, -28)));
+  const key = dkey(from) + '|' + dkey(new Date());
+  if (catchupKey === key && catchupActs) return;
+  catchupActs = await api(`/api/activity?from=${dkey(from)}&to=${dkey(new Date())}`);
+  catchupActs.sort((a, b) => a.s - b.s);
+  catchupKey = key;
+}
+function catchupData() {
+  const S = state.settings;
+  const from = S.catchupFrom ? parseKey(S.catchupFrom) : addDays(mondayOf(new Date()), -28);
+  const weeks = [], unknown = {};
+  for (let m = mondayOf(from); m <= new Date(); m = addDays(m, 7)) {
+    const wd = computeWeekAt(m, catchupActs || []);
+    let leave = 0, fixed = 0, open = 0, days = 0;
+    wd.days.slice(0, 5).forEach((d) => {
+      if (d.date < from || d.date > new Date()) return;
+      days++;
+      for (const [pid, min] of Object.entries(d.totals)) { if ((proj(pid) || {}).fullDay) leave += min; else fixed += min; }
+      open += d.unassigned;
+      for (const b of d.blocks.concat(d.allDay)) {
+        if (b.kind !== 'cal' || b.pid || b.leaveDay || !b.min) continue;
+        const t = b.title.trim();
+        const u = unknown[t.toLowerCase()] || (unknown[t.toLowerCase()] = { title: t, min: 0, n: 0, dates: [], occ: [] });
+        u.min += b.min; u.n++; if (!u.dates.includes(d.key)) u.dates.push(d.key);
+        u.occ.push({ ev: b.ref, date: d.key, min: b.min, slack: slackSummary(d.key) });
+      }
+    });
+    const target = (S.weekHours / 5) * days * 60;
+    weeks.push({ monday: m, wd, leave, fixed, open, target, rest: Math.max(0, target - leave - fixed - open), done: !!state.reported[(() => { const w = isoWeek(m); return `${w.year}-W${pad(w.week)}`; })()] });
+  }
+  return { weeks, unknown: Object.values(unknown).sort((a, b) => b.min - a.min) };
+}
+function renderCatchup() {
+  if (!catchupActs) { loadCatchupActivity().then(render).catch(() => { catchupActs = []; render(); }); return '<div class="card section">Inhaalanalyse laden…</div>'; }
+  const { weeks, unknown } = catchupData();
+  const h = (min) => fmtHours(min / 60);
+  const sum = (k) => weeks.reduce((t, w) => t + w[k], 0);
+  let html = `<div class="card section"><div class="row" style="flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div style="flex:3"><h2>Inhalen in AFAS</h2><div class="muted small">Live berekend uit je agenda${catchupActs.length ? ' en meting' : ''}. Per week: wat vaststaat, wat verlof is, welke agendatijd nog geen project heeft, en hoeveel er nog leeg is tot ${S_weekHours()} uur.</div></div>
+    <div class="field" style="flex:0 0 160px;margin:0"><label>Vanaf</label><input type="date" data-sf="catchupFrom" value="${state.settings.catchupFrom || dkey(addDays(mondayOf(new Date()), -28))}"></div></div>
+    <div class="summary" style="margin-top:14px"><span class="chip total">Doel <b>${h(sum('target'))}</b></span><span class="chip">Vast <b>${h(sum('fixed'))}</b></span><span class="chip">Verlof <b>${h(sum('leave'))}</b></span><span class="chip warn">Agenda zonder project <b>${h(sum('open'))}</b></span><span class="chip">Nog leeg <b>${h(sum('rest'))}</b></span></div>
+    <div style="overflow:auto"><table><thead><tr><th>Week</th><th>Van</th><th class="num">Vast</th><th class="num">Verlof</th><th class="num">Zonder project</th><th class="num">Nog leeg</th><th>Projecten</th><th></th></tr></thead><tbody>`;
+  for (const w of weeks) {
+    const chips = Object.entries(w.wd.totals).filter(([pid]) => !(proj(pid) || {}).fullDay).sort((a, b) => b[1] - a[1]).map(([pid, m]) => `<span class="mono small">${esc((proj(pid) || {}).nr || '?')}</span> ${h(m)}`).join(' · ');
+    const wid = (() => { const x = isoWeek(w.monday); return `${x.year}-W${pad(x.week)}`; })();
+    const st = w.done ? 'ingevoerd' : (state.closed || {})[wid] ? 'afgesloten' : '';
+    html += `<tr><td><b>${isoWeek(w.monday).week}</b>${st ? ` <span class="small muted">${st}</span>` : ''}</td><td>${w.monday.getDate()} ${MONTHS[w.monday.getMonth()]}</td><td class="num">${h(w.fixed)}</td><td class="num">${w.leave ? h(w.leave) : ''}</td><td class="num" style="color:var(--warn)">${w.open > 1 ? h(w.open) : ''}</td><td class="num">${w.rest > 1 ? h(w.rest) : ''}</td><td class="small">${chips}</td><td><button class="btn sm" data-openweek="${dkey(w.monday)}">Open</button></td></tr>`;
+  }
+  html += `</tbody></table></div></div>`;
+  html += `<div class="card section"><h3>Agenda-items zonder project (${unknown.length})</h3><p class="small muted" style="margin-top:0">Klik op een item voor voorstellen per datum (AFAS-aanvangsdatum, je projecten, je Slack-activiteit). Pas als je klikt wordt iets toegewezen. ${canAsk() ? `Lukt het niet, dan kun je het altijd nog aan ${esc(state.settings.askName)} vragen.` : ''}</p>
+    <div style="overflow:auto"><table><thead><tr><th></th><th>Titel</th><th class="num">Uren</th><th class="num">Keer</th><th>Data</th><th>Beste voorstel</th></tr></thead><tbody>`;
+  unknown.forEach((u, i) => {
+    const best = suggest(u.title, parseKey(u.occ[u.occ.length - 1].date), 1)[0];
+    html += `<tr><td><input type="checkbox" data-unk="${i}"></td><td><a href="#" data-unkopen="${i}"><b>${esc(u.title)}</b></a></td><td class="num">${h(u.min)}</td><td class="num">${u.n}</td><td class="small muted">${u.dates.slice(0, 4).map((k) => { const d = parseKey(k); return d.getDate() + ' ' + MONTHS[d.getMonth()]; }).join(', ')}${u.dates.length > 4 ? ' …' : ''}</td><td class="small">${best ? `<span class="mono">${best.nr}</span> ${esc(best.name)}` : '<span class="muted">geen</span>'} <button class="btn sm" data-unkopen="${i}">Bekijk</button></td></tr>`;
+  });
+  html += `</tbody></table></div>${canAsk() ? `<div class="actions"><button class="btn" data-act="askUnknown">Vraag aangevinkte aan ${esc(state.settings.askName)}</button></div>` : ''}</div>`;
+  return html;
+}
+const S_weekHours = () => state.settings.weekHours;
+
+// ---------- Weergave: rapport ----------
+function roundH(h) { const r = Number(state.settings.rounding); return r ? Math.round(h / r) * r : h; }
+const fmtNum = (h) => (h ? (Math.round(h * 100) / 100).toFixed(2).replace('.', state.settings.decimal) : '');
+function reportRows() {
+  const rows = [];
+  const pids = Object.keys(weekData.totals).filter((pid) => weekData.totals[pid] > 0.5);
+  for (const pid of pids) {
+    const p = proj(pid) || { nr: '?', name: pid };
+    const days = weekData.days.map((d) => roundH((d.totals[pid] || 0) / 60));
+    const titles = {};
+    for (const d of weekData.days) for (const [t, m] of Object.entries(d.titles[pid] || {})) titles[t] = (titles[t] || 0) + m;
+    const desc = Object.entries(titles).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]).join('; ');
+    rows.push({ pid, p, days, total: days.reduce((a, b) => a + b, 0), raw: weekData.totals[pid] / 60, desc });
+  }
+  rows.sort((a, b) => (a.p.nr || 'zzz').localeCompare(b.p.nr || 'zzz'));
+  return rows;
+}
+function weekId() { const w = isoWeek(week); return `${w.year}-W${pad(w.week)}`; }
+function renderReport() {
+  const rows = reportRows();
+  const showDays = state.settings.weekend || weekData.days.slice(5).some((d) => d.total > 0) ? 7 : 5;
+  const dayTotals = weekData.days.map((_, i) => rows.reduce((t, r) => t + r.days[i], 0));
+  const grand = rows.reduce((t, r) => t + r.total, 0);
+  const done = state.reported[weekId()];
+  const closed = (state.closed || {})[weekId()];
+  const end = addDays(week, 6);
+  let html = `<div class="card section">
+    <div class="row" style="align-items:flex-start;flex-wrap:wrap;gap:12px">
+      <div style="flex:2"><h2>Urenstaat week ${isoWeek(week).week}</h2>
+        <div class="muted">${week.getDate()} ${MONTHS_LONG[week.getMonth()]} t/m ${end.getDate()} ${MONTHS_LONG[end.getMonth()]} ${end.getFullYear()} · afgerond op ${state.settings.rounding ? fmtNum(Number(state.settings.rounding)) + ' uur' : 'geen afronding'} per dag per project</div></div>
+      <div style="flex:0;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn" data-act="copyTable">Kopieer tabel</button>
+        <button class="btn" data-act="csv">Download CSV</button>
+        <button class="btn ${closed ? '' : 'primary'}" data-act="toggleClosed">${closed ? 'Week heropenen' : 'Week afsluiten'}</button>
+        <button class="btn" data-act="toggleDone">${done ? 'Ingevoerd in AFAS' : 'Markeer als ingevoerd'}</button>
+      </div>
+    </div>`;
+  if (weekData.unassigned > 1) html += `<div class="banner" style="margin-top:14px">Er staat nog ${fmtHours(weekData.unassigned / 60)} uur niet toegewezen deze week. <button class="btn sm" data-goto="week">Naar weekoverzicht</button></div>`;
+  if (done) html += `<div class="banner okb" style="margin-top:14px">Ingevoerd op ${new Date(done).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}</div>`;
+  html += `<div style="overflow:auto;margin-top:14px"><table>
+    <thead><tr><th>Projectnr</th><th>Project</th><th>Werksoort</th>${weekData.days.slice(0, showDays).map((d, i) => `<th class="num">${DAYS[i]} ${d.date.getDate()}</th>`).join('')}<th class="num">Totaal</th><th></th></tr></thead><tbody>`;
+  for (const r of rows) {
+    html += `<tr><td class="mono">${r.p.nr ? `<b>${esc(r.p.nr)}</b>` : '<span style="color:var(--warn);font-family:inherit;font-weight:600">nummer ontbreekt</span>'}</td><td>${esc(r.p.name)}<div class="small muted">${esc(r.p.admin || '')}</div></td><td>${esc(r.p.werksoort || '')}</td>
+      ${r.days.slice(0, showDays).map((h) => `<td class="num cp" data-copy="${fmtNum(h)}">${fmtNum(h)}</td>`).join('')}
+      <td class="num"><b>${fmtNum(r.total)}</b></td><td><button class="btn sm ghost" data-copyrow="${r.pid}" title="Kopieer rij">⧉</button></td></tr>`;
+  }
+  if (!rows.length) html += `<tr><td colspan="${showDays + 5}" class="empty">Nog geen toegewezen uren deze week.</td></tr>`;
+  if (weekData.unassigned > 1) {
+    html += `<tr class="unrow"><td>?</td><td>Niet toegewezen</td><td></td>${weekData.days.slice(0, showDays).map((d) => `<td class="num">${fmtNum(roundH(d.unassigned / 60))}</td>`).join('')}<td class="num">${fmtNum(roundH(weekData.unassigned / 60))}</td><td></td></tr>`;
+  }
+  html += `<tr class="tot"><td></td><td>Totaal</td><td></td>${dayTotals.slice(0, showDays).map((h) => `<td class="num">${fmtNum(h)}</td>`).join('')}<td class="num">${fmtNum(grand)}</td><td></td></tr>`;
+  html += `</tbody></table></div><p class="small muted">Klik op een getal om het te kopiëren. "Kopieer tabel" plakt netjes in Excel of Numbers.</p></div>`;
+  html += renderExport(rows, closed);
+  if (rows.length) {
+    html += `<div class="card section"><h3>Omschrijvingen per project</h3><p class="small muted" style="margin-top:0">Gebaseerd op de afspraken en activiteit met de meeste tijd. Handig voor het omschrijvingsveld in AFAS.</p><table><tbody>`;
+    for (const r of rows) html += `<tr><td class="mono" style="width:90px">${esc(r.p.nr)}</td><td>${esc(r.desc)}</td><td style="width:40px"><button class="btn sm ghost" data-copy="${esc(r.desc)}">⧉</button></td></tr>`;
+    html += `</tbody></table></div>`;
+  }
+  return html;
+}
+// ---------- AFAS-export: afgesloten weken sluitend maken ----------
+// De echte uren blijven in de app. Alleen in de export wordt een tekort tot de weeknorm aangevuld met 000753 Overige werkzaamheden.
+const fillNr = () => String(state.settings.fillNr || '000753').trim();
+function exportRows(rows) {
+  const S = state.settings;
+  const target = Number(S.weekHours) || 40, perDay = Number(S.fullDayHours) || 8;
+  const out = rows.map((r) => ({ ...r, days: r.days.slice(), fill: 0 }));
+  const dayTot = (i) => out.reduce((t, r) => t + r.days[i], 0);
+  let deficit = Math.max(0, target - out.reduce((t, r) => t + r.days.reduce((a, b) => a + b, 0), 0));
+  const fill = [0, 0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < 5 && deficit > 0.001; i++) {
+    const add = Math.min(deficit, Math.max(0, perDay - dayTot(i)));
+    fill[i] = roundH(add); deficit -= fill[i];
+  }
+  // Blijft er na het opvullen tot 8 uur per dag nog iets over (bijv. door afronding), dan op de laatste werkdag.
+  if (deficit > 0.001) fill[4] += roundH(deficit);
+  const fillTotal = fill.reduce((a, b) => a + b, 0);
+  if (fillTotal > 0) {
+    const p = state.projects.find((x) => x.nr === fillNr()) || ensureProject(fillNr());
+    let row = out.find((r) => r.p.nr === fillNr());
+    if (!row) { row = { pid: p.id, p, days: [0, 0, 0, 0, 0, 0, 0], total: 0, desc: '' }; out.push(row); }
+    row.fill = fillTotal;
+    row.days = row.days.map((h, i) => h + fill[i]);
+    row.total = row.days.reduce((a, b) => a + b, 0);
+    out.sort((a, b) => (a.p.nr || 'zzz').localeCompare(b.p.nr || 'zzz'));
+  }
+  return { rows: out, fill, fillTotal, target };
+}
+function renderExport(rows, closed) {
+  const wk = isoWeek(week).week;
+  if (!closed) {
+    return `<div class="card section"><h2>AFAS-export week ${wk}</h2><p class="muted" style="margin:0 0 12px">De export maakt de week sluitend: komt je week onder de ${state.settings.weekHours} uur, dan wordt het tekort aangevuld met ${fillNr()} Overige werkzaamheden. Dat gebeurt alleen voor weken die je zelf hebt afgesloten; in de app blijven je echte uren staan.</p><button class="btn primary" data-act="toggleClosed">Week ${wk} afsluiten</button></div>`;
+  }
+  const ex = exportRows(rows);
+  storeExport(ex);
+  const showDays = ex.rows.some((r) => r.days[5] || r.days[6]) ? 7 : 5;
+  const dayTotals = [0, 1, 2, 3, 4, 5, 6].map((i) => ex.rows.reduce((t, r) => t + r.days[i], 0));
+  const grand = dayTotals.reduce((a, b) => a + b, 0);
+  let html = `<div class="card section"><div class="row" style="align-items:flex-start;flex-wrap:wrap;gap:12px">
+    <div style="flex:2"><h2>AFAS-export week ${wk}</h2><div class="muted small">Afgesloten op ${new Date(closed).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}. ${ex.fillTotal ? `Aangevuld met ${fmtNum(ex.fillTotal)} uur ${fillNr()} om op ${ex.target} uur te komen.` : `Deze week heeft al ${fmtNum(grand)} uur, er is niets aangevuld.`}</div></div>
+    <div style="flex:0;display:flex;gap:8px"><button class="btn primary" data-act="copyExport">Kopieer export</button></div></div>`;
+  if (weekData.unassigned > 1 && ex.fillTotal) html += `<div class="banner" style="margin-top:14px">Let op: ${fmtHours(weekData.unassigned / 60)} uur in deze week heeft nog geen project en valt nu onder de aanvulling ${fillNr()}. Wijs ze eerst toe als ze bij een ander project horen.</div>`;
+  html += `<div style="overflow:auto;margin-top:14px"><table><thead><tr><th>Projectnr</th><th>Project</th>${weekData.days.slice(0, showDays).map((d, i) => `<th class="num">${DAYS[i]} ${d.date.getDate()}</th>`).join('')}<th class="num">Totaal</th><th></th></tr></thead><tbody>`;
+  for (const r of ex.rows) {
+    html += `<tr><td class="mono"><b>${esc(r.p.nr)}</b></td><td>${esc(r.p.name)}${r.fill ? `<div class="small muted">waarvan ${fmtNum(r.fill)} uur aanvulling</div>` : ''}</td>
+      ${r.days.slice(0, showDays).map((h, i) => `<td class="num cp" data-copy="${fmtNum(h)}">${fmtNum(h)}${r.fill && ex.fill[i] ? `<div class="small muted">+${fmtNum(ex.fill[i])}</div>` : ''}</td>`).join('')}
+      <td class="num"><b>${fmtNum(r.total)}</b></td><td><button class="btn sm ghost" data-copy="${[r.p.nr, ...r.days.slice(0, showDays).map(fmtNum)].join('\t')}" title="Kopieer rij">Kopieer</button></td></tr>`;
+  }
+  html += `<tr class="tot"><td></td><td>Totaal</td>${dayTotals.slice(0, showDays).map((h) => `<td class="num">${fmtNum(h)}</td>`).join('')}<td class="num">${fmtNum(grand)}</td><td></td></tr></tbody></table></div>
+    <p class="small muted">Neem per regel de uren per dag over in je AFAS-urenmatrix. Klik op een getal of op Kopieer om het over te nemen.</p>
+    <div class="box"><h3>Invullen in AFAS</h3>
+      <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap"><button class="btn primary" data-act="afasRequest" style="flex:0">Invullen in AFAS</button><span class="small" id="afasTabStatus">${afasTabText()}</span></div>
+      <p class="small muted" style="margin:8px 0 0">Ga daarna naar je AFAS-tabblad en kies week ${wk} in de kalender. De extensie "Uren naar AFAS" vult de lege vakjes in; wat al anders staat blijft staan. Controleer en sla op in AFAS.
+      Nog geen extensie? Zie Instellingen › Koppelingen, of gebruik de bladwijzer: <a href="${bookmarkletHref()}" title="Sleep naar je bladwijzerbalk" onclick="event.preventDefault(); showFillHelp();">Uren invullen</a>.</p></div></div>`;
+  return html;
+}
+// ---------- Invullen in AFAS (bladwijzer) ----------
+// Draait in de AFAS-urenmatrix, in je eigen ingelogde browser. Haalt de export van de getoonde week op uit de uren-app,
+// vult alleen lege vakjes, laat afwijkende waarden staan en toont een overzicht. Opslaan doe je zelf in AFAS.
+async function afasFill(dry) {
+  const BASE = 'http://127.0.0.1:5230';
+  const deep = (root, sel, out = []) => { root.querySelectorAll('*').forEach((e) => { if (e.matches(sel)) out.push(e); if (e.shadowRoot) deep(e.shadowRoot, sel, out); }); return out; };
+  const old = document.getElementById('uren-fill-panel'); if (old) old.remove();
+  const panel = document.createElement('div');
+  panel.id = 'uren-fill-panel';
+  panel.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;width:380px;max-height:70vh;overflow:auto;background:#fff;color:#11152a;border:1px solid #dfe8e8;border-radius:8px;box-shadow:0 12px 34px rgba(0,0,49,.18);padding:14px 16px;font:14px/1.45 Montserrat,system-ui,sans-serif';
+  const show = (html) => { panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="color:#000031">Uren invullen${dry ? ' (proef)' : ''}</b><button id="uren-fill-x" style="border:0;background:none;font-size:16px;cursor:pointer">✕</button></div>` + html; document.body.appendChild(panel); panel.querySelector('#uren-fill-x').onclick = () => panel.remove(); return panel; };
+  // De matrix staat in shadow DOM; innerText ziet die niet (en toont soms een oude week). Lees de zichtbare kop.
+  const allLeaves = deep(document, '*').filter((e) => e.children.length === 0 && e.getBoundingClientRect().width > 0);
+  const monLeaf = allLeaves.find((e) => e.textContent.trim() === 'Maandag');
+  const calLeaf = allLeaves.find((e) => /^(JANUARI|FEBRUARI|MAART|APRIL|MEI|JUNI|JULI|AUGUSTUS|SEPTEMBER|OKTOBER|NOVEMBER|DECEMBER)\s+\d{4}$/.test(e.textContent.trim()));
+  const text = (monLeaf ? monLeaf.parentElement.textContent.replace(/\s+/g, ' ') : '') + ' ' + (calLeaf ? calLeaf.textContent : '');
+  const MON = { JAN: 0, FEB: 1, MRT: 2, APR: 3, MEI: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OKT: 9, NOV: 10, DEC: 11 };
+  const md = text.match(/Maandag\s*(\d{1,2})\s*(JAN|FEB|MRT|APR|MEI|JUN|JUL|AUG|SEP|OKT|NOV|DEC)/);
+  if (!md) return show('Open eerst je urenmatrix in AFAS (Uren boeken per week) en kies de week.');
+  const LONG = ['JANUARI', 'FEBRUARI', 'MAART', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AUGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DECEMBER'];
+  const ym = text.match(/(JANUARI|FEBRUARI|MAART|APRIL|MEI|JUNI|JULI|AUGUSTUS|SEPTEMBER|OKTOBER|NOVEMBER|DECEMBER)\s+(\d{4})/);
+  let year = ym ? +ym[2] : new Date().getFullYear();
+  const calMonth = ym ? LONG.indexOf(ym[1]) : MON[md[2]];
+  if (MON[md[2]] - calMonth > 6) year -= 1; if (calMonth - MON[md[2]] > 6) year += 1;
+  const p2 = (n) => String(n).padStart(2, '0');
+  const monday = `${year}-${p2(MON[md[2]] + 1)}-${p2(+md[1])}`;
+  let ex;
+  try { ex = await fetch(`${BASE}/api/afas-export?monday=${monday}`).then((r) => r.json()); }
+  catch { return show('De uren-app is niet bereikbaar. Staat de meter aan (⏱ in de menubalk)? Chrome kan ook om toestemming voor het lokale netwerk vragen: klik dan Toestaan.'); }
+  if (!ex.ok) return show(`Week van maandag ${md[1]} ${md[2].toLowerCase()} is nog niet afgesloten in de uren-app. Sluit hem af in het AFAS-rapport en probeer opnieuw.`);
+  // Matrix uitlezen: dagkoppen op x, projectregels op y.
+  const leaves = deep(document, '*').filter((e) => e.children.length === 0);
+  const DAYN = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+  const heads = leaves.filter((e) => DAYN.includes(e.textContent.trim())).map((e) => { const r = e.getBoundingClientRect(); return { i: DAYN.indexOf(e.textContent.trim()), x: r.left + r.width / 2 }; });
+  const labels = leaves.filter((e) => /^\d{6}$/.test(e.textContent.trim())).map((e) => ({ nr: e.textContent.trim(), y: e.getBoundingClientRect().top })).sort((a, b) => a.y - b.y);
+  const cells = {};
+  for (const inp of deep(document, 'input')) {
+    const r = inp.getBoundingClientRect();
+    if (!r.width || (r.left + r.width / 2) < (Math.min(...heads.map((h) => h.x)) - 100)) continue;
+    const lab = [...labels].reverse().find((l) => l.y <= r.top + 2);
+    const h = heads.reduce((b, x) => (Math.abs(x.x - (r.left + r.width / 2)) < Math.abs(b.x - (r.left + r.width / 2)) ? x : b), heads[0]);
+    if (lab && h && Math.abs(h.x - (r.left + r.width / 2)) < 70 && !cells[lab.nr + '|' + h.i]) cells[lab.nr + '|' + h.i] = inp;
+  }
+  const toHM = (x) => { const m = Math.round(x * 60); return `${Math.floor(m / 60)}:${p2(m % 60)}`; };
+  const toNum = (v) => { v = String(v || '').trim(); if (!v) return 0; if (v.includes(':')) { const [a, b] = v.split(':'); return +a + (+b || 0) / 60; } return parseFloat(v.replace(',', '.')) || 0; };
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const filled = [], same = [], conflict = [], missing = new Set(), hidden = [];
+  for (const row of ex.rows) {
+    row.days.forEach((hrs, i) => {
+      if (!hrs) return;
+      const inp = cells[row.nr + '|' + i];
+      if (!inp) { if (!labels.some((l) => l.nr === row.nr)) missing.add(row.nr + ' ' + row.name); else hidden.push(`${row.nr} ${DAYN[i]}`); return; }
+      const cur = toNum(inp.value);
+      if (cur && Math.abs(cur - hrs) < 0.01) { same.push(row.nr); return; }
+      if (cur) { conflict.push(`${row.nr} ${DAYN[i].slice(0, 2)}: staat ${inp.value}, export ${toHM(hrs)}`); inp.style.outline = '2px solid #d4145a'; return; }
+      if (dry) { inp.style.outline = '2px solid #ff4600'; filled.push(`${row.nr} ${DAYN[i].slice(0, 2)} ${toHM(hrs)}`); return; }
+      inp.focus(); setter.call(inp, toHM(hrs));
+      inp.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      inp.blur();
+      inp.style.outline = '2px solid #17735b';
+      filled.push(`${row.nr} ${DAYN[i].slice(0, 2)} ${toHM(hrs)}`);
+    });
+  }
+  const total = ex.rows.reduce((t, r) => t + r.days.reduce((a, b) => a + b, 0), 0);
+  const list = (title, arr, color) => (arr.length ? `<div style="margin-top:8px"><b style="color:${color}">${title} (${arr.length})</b><div style="font-size:12px;color:#68717d">${arr.join('<br>')}</div></div>` : '');
+  show(`<div style="font-size:12px;color:#68717d">Week van maandag ${md[1]} ${md[2].toLowerCase()} ${year} · export ${toHM(total)} uur</div>`
+    + list(dry ? 'Zou invullen' : 'Ingevuld', filled, '#17735b')
+    + list('Stond al goed', [...new Set(same)], '#68717d')
+    + list('Niet aangepast, wijkt af', conflict, '#d4145a')
+    + list('Project staat nog niet in je matrix: voeg de regel toe en klik opnieuw', [...missing], '#ff4600')
+    + list('Weekend niet zichtbaar: zet "Toon weekend" aan', hidden, '#ff4600')
+    + `<div style="margin-top:10px;font-size:12px">${dry ? 'Er is niets veranderd.' : 'Controleer de vakjes en sla op in AFAS. Er is nog niets opgeslagen.'}</div>`);
+  return { filled, same, conflict, missing: [...missing], hidden };
+}
+
+// Kleine bladwijzer: laadt de actuele invulcode uit de uren-app in het AFAS-tabblad.
+const bookmarkletHref = () => 'javascript:' + encodeURIComponent("(function(){if(!/afasinsite\\.nl/.test(location.host)){alert('Open eerst je urenmatrix in AFAS en klik daar op deze bladwijzer.');return;}var s=document.createElement('script');s.src='http://127.0.0.1:5230/afas-fill.js?t='+Date.now();s.onerror=function(){alert('De uren-app is niet bereikbaar. Staat de meter aan?');};document.body.appendChild(s);})()");
+function showFillHelp() {
+  openDrawer('Uren invullen in AFAS', `
+    <p style="margin-top:0">Deze knop werkt in het AFAS-tabblad, niet hier in de uren-app.</p>
+    <ol style="padding-left:18px"><li><b>Eenmalig:</b> sleep de knop "Uren invullen" naar je bladwijzerbalk in Chrome (cmd+shift+B als je de balk niet ziet).</li>
+    <li>Ga naar je AFAS-tabblad met de urenmatrix en kies de week.</li>
+    <li>Klik daar op de bladwijzer "Uren invullen". Rechtsonder verschijnt een overzicht van wat er is ingevuld.</li>
+    <li>Controleer en sla op in AFAS.</li></ol>
+    <p class="small muted">De week moet hier wel afgesloten zijn. Afgesloten weken met een export: ${Object.keys(state.exports || {}).length}.</p>`);
+}
+let afasTabInfo = { tab: null, request: null };
+function afasTabText() {
+  const t = afasTabInfo.tab, r = afasTabInfo.request;
+  if (!t) return '<span style="color:var(--orange)">AFAS-tabblad niet gevonden.</span> Open je urenmatrix in Chrome (met de extensie "Uren naar AFAS").';
+  const d = parseKey(t.monday);
+  let txt = `<span style="color:var(--green)">AFAS-tabblad verbonden</span>, staat op week ${isoWeek(d).week} (${d.getDate()} ${MONTHS[d.getMonth()]}).`;
+  if (r) { const rd = parseKey(r.monday); txt += ` Wacht op week ${isoWeek(rd).week}.`; }
+  return txt;
+}
+async function pollAfasTab() {
+  try { afasTabInfo = await api('/api/afas-tab'); } catch { afasTabInfo = { tab: null, request: null }; }
+  const el = document.getElementById('afasTabStatus');
+  if (el) el.innerHTML = afasTabText();
+  const k = document.getElementById('kAfas');
+  if (k && !k.contains(document.activeElement)) {
+    const before = catalog.length;
+    if (afasTabInfo.catalogAt && afasTabInfo.catalogAt !== catalogUpdated) await loadCatalog();
+    k.innerHTML = afasSteps();
+    if (catalog.length !== before) toast(`Projectcatalogus bijgewerkt: ${catalog.length} projecten`);
+  }
+}
+setInterval(() => { if (tab === 'rapport' || tab === 'instellingen') pollAfasTab(); }, 3000);
+function storeExport(ex) {
+  // Bewaar de export van een afgesloten week zodat de AFAS-knop hem kan ophalen.
+  state.exports = state.exports || {};
+  const data = { week: isoWeek(week).week, rows: ex.rows.map((r) => ({ nr: r.p.nr, name: r.p.name, days: r.days })) };
+  const k = dkey(week);
+  if (JSON.stringify((state.exports[k] || {}).rows) !== JSON.stringify(data.rows)) { state.exports[k] = { ...data, at: Date.now() }; save(); }
+}
+function exportText() {
+  const ex = exportRows(reportRows());
+  const head = ['Projectnr', 'Project', ...weekData.days.map((d, i) => `${DAYS[i]} ${dkey(d.date)}`), 'Totaal'];
+  return [head.join('\t')].concat(ex.rows.map((r) => [r.p.nr, r.p.name, ...r.days.map(fmtNum), fmtNum(r.total)].join('\t'))).join('\n');
+}
+function tableText(sep) {
+  const rows = reportRows();
+  const head = ['Projectnr', 'Project', 'Relatie', 'Werksoort', ...weekData.days.map((d, i) => `${DAYS[i]} ${dkey(d.date)}`), 'Totaal', 'Omschrijving'];
+  const q = (v) => (sep === ';' && /[;"\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const lines = [head.map(q).join(sep)];
+  for (const r of rows) lines.push([r.p.nr, r.p.name, r.p.admin || '', r.p.werksoort || '', ...r.days.map(fmtNum), fmtNum(r.total), r.desc].map(q).join(sep));
+  return lines.join('\n');
+}
+
+// ---------- Weergave: projecten ----------
+function renderProjects() {
+  const ps = state.projects;
+  let html = `<div class="card section"><div class="row" style="flex-wrap:wrap"><div style="flex:3"><h2>Projecten en AFAS-nummers</h2>
+    <div class="muted small">Trefwoorden koppelen automatisch: staat een trefwoord (of het projectnummer) in de titel van een afspraak, een venstertitel, URL of bestandsnaam, dan gaat de tijd naar dat project. Langste match wint.</div></div>
+    <div style="flex:0;display:flex;gap:8px"><button class="btn" data-act="pasteProjects">Lijst plakken</button><button class="btn primary" data-act="addProject">＋ Project</button></div></div>
+    <div style="overflow:auto;margin-top:14px"><table class="projtable"><thead><tr><th></th><th style="min-width:96px">Projectnr</th><th style="min-width:230px">Naam</th><th style="min-width:170px">Relatie</th><th style="width:90px">Werksoort</th><th style="min-width:240px">Trefwoorden</th><th title="Hele-dag-afspraken tellen als volle werkdag">Hele dag</th><th>Actief</th><th></th></tr></thead><tbody>`;
+  ps.forEach((p, i) => {
+    const sys = p.id === 'ignore';
+    html += `<tr data-pi="${i}">
+      <td><input type="color" class="swatch" data-pf="color" value="${p.color}"></td>
+      <td><input type="text" class="mono" data-pf="nr" value="${esc(p.nr)}" ${sys ? 'disabled' : ''}></td>
+      <td><input type="text" data-pf="name" value="${esc(p.name)}" ${sys ? 'disabled' : ''}>${p.note ? `<div class="small" style="color:var(--warn);margin-top:2px">${esc(p.note)}</div>` : ''}</td>
+      <td><input type="text" data-pf="admin" value="${esc(p.admin || '')}" ${sys ? 'disabled' : ''}></td>
+      <td><input type="text" data-pf="werksoort" value="${esc(p.werksoort || '')}" ${sys ? 'disabled' : ''}></td>
+      <td><input type="text" data-pf="keywords" value="${esc(p.keywords || '')}" placeholder="komma gescheiden"></td>
+      <td style="text-align:center"><input type="checkbox" data-pf="fullDay" ${p.fullDay ? 'checked' : ''} ${sys ? 'disabled' : ''}></td>
+      <td style="text-align:center"><input type="checkbox" data-pf="active" ${p.active !== false ? 'checked' : ''} ${sys ? 'disabled' : ''}></td>
+      <td>${sys ? '' : `<button class="btn sm ghost danger" data-delproj="${p.id}" title="Verwijderen">✕</button>`}</td></tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+function openPasteProjects() {
+  drawerCtx = {};
+  openDrawer('Projectenlijst plakken', `
+    <p class="small muted" style="margin-top:0">Plak regels zoals ze in AFAS staan, één project per regel. Bijvoorbeeld:<br><code>000565 TVP - Overige producties/projecten • Techonomy Video Production B.V.</code><br>Bestaande nummers worden bijgewerkt, nieuwe toegevoegd. Regels zonder nummer (zoals "VIDEO Video productie") worden als werksoort van het project erboven gelezen.</p>
+    <div class="field"><textarea id="pasteBox" rows="12"></textarea></div>
+    <div class="actions"><button class="btn primary" data-act="importPaste">Importeren</button></div>`);
+}
+function importPaste() {
+  const lines = document.getElementById('pasteBox').value.split('\n').map((l) => l.replace(/^[\s▾▸▼►•-]+/, '').trim()).filter(Boolean);
+  let last = null, added = 0, updated = 0;
+  for (const line of lines) {
+    const m = line.match(/^(\d{3,})\s+(.+?)(?:\s+[•·|]\s+(.+))?$/);
+    if (m) {
+      let p = state.projects.find((x) => x.nr === m[1]);
+      if (p) { p.name = m[2]; if (m[3]) p.admin = m[3]; updated++; }
+      else {
+        p = { id: 'p' + m[1], nr: m[1], name: m[2], admin: m[3] || '', werksoort: '', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true };
+        state.projects.splice(state.projects.length - 1, 0, p); added++;
+      }
+      last = p;
+    } else if (last && !last.werksoort) {
+      last.werksoort = line.split(/\s+/)[0];
+    }
+  }
+  save(); closeDrawer(); render(); toast(`${added} toegevoegd, ${updated} bijgewerkt`);
+}
+
+// ---------- Weergave: instellingen ----------
+// ---------- Koppelingen (eenmalig instellen, ook voor een nieuwe gebruiker) ----------
+const ownList = () => String(state.settings.ownSources || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const kled = (ok) => `<span class="led" style="background:${ok === true ? 'var(--ok)' : ok === false ? 'var(--bad)' : 'var(--warn)'}"></span>`;
+const kstep = (ok, title, body) => `<div class="kstep">${kled(ok)}<div><b>${title}</b><div class="small">${body}</div></div></div>`;
+function afasSteps() {
+  const t = afasTabInfo.tab;
+  const rows = (t && t.rows) || [];
+  const missing = rows.filter((r) => !state.projects.some((p) => p.nr === r.nr));
+  const ext = t
+    ? `Verbonden met <code>${esc(t.host || 'AFAS')}</code>, week van ${parseKey(t.monday).getDate()} ${MONTHS[parseKey(t.monday).getMonth()]} staat open.`
+    : `Nog niet verbonden. Installeer eenmalig de Chrome-extensie: ga naar <code>chrome://extensions</code>, zet Ontwikkelaarsmodus aan, kies "Uitgepakte extensie laden" en kies de map die je opent via ⏱ › <b>Chrome-extensie tonen in Finder</b>. Open daarna je AFAS-urenmatrix.`;
+  const cat = catalog.length
+    ? `${catalog.length} projecten in de catalogus${catalogUpdated ? ` (bijgewerkt ${new Date(catalogUpdated).toLocaleDateString('nl-NL')})` : ''}.`
+    : 'Nog geen projectcatalogus.';
+  const rowsTxt = !t ? 'Open je AFAS-urenmatrix om je urenregels te zien.'
+    : missing.length ? `${rows.length} regels in je AFAS-urenmatrix, ${missing.length} nog niet in de app. <button class="btn sm" data-act="importRows">Importeer ${missing.length} projecten</button>`
+    : `Alle ${rows.length} regels uit je AFAS-urenmatrix staan in de app.`;
+  return kstep(!!t, '3. AFAS-extensie', ext)
+    + kstep(catalog.length > 0 && (!t || !missing.length) ? true : null, '4. AFAS-projecten',
+      `${cat} Bijwerken: open in AFAS <b>Projecten › Alle projecten</b> en klik linksonder op <b>Projecten naar uren-app</b>.<br>${rowsTxt}`);
+}
+function koppelingenCard() {
+  const S = state.settings, a = status.agent;
+  const sources = [...new Set(calData.calendars.map((c) => c.source).filter(Boolean))];
+  const own = ownList();
+  const meter = status.alive && a
+    ? `Draait. Agenda: ${a.calendar === 'granted' ? `toegang, ${a.calendarEvents} afspraken` : 'nog geen toegang (klik Sta toe, of zet "Uren" aan bij Privacy › Agenda’s)'}. Toegankelijkheid: ${a.accessibility ? 'aan' : 'uit (zet Uren aan bij Privacy › Toegankelijkheid)'}.`
+    : 'Draait niet. Open de app <b>Uren</b> uit Programma’s; daarna staat ⏱ in je menubalk en start hij voortaan vanzelf bij het inloggen.';
+  const agenda = sources.length
+    ? `Vink de accounts aan die van jou zijn. Gedeelde en privé-agenda's laat je uit.<div class="opts">${sources.map((src) => `<label class="check" style="margin:0"><input type="checkbox" data-ownsrc="${esc(src)}" ${own.includes(src.toLowerCase()) ? 'checked' : ''}> ${esc(src)}</label>`).join('')}</div>`
+    : 'Nog geen agenda’s ingelezen. Zodra de meter draait en toegang heeft, verschijnen je accounts hier.';
+  return `<div class="card section"><h2>Koppelingen</h2><p class="small muted" style="margin-top:0">Loop deze stappen één keer door. Zo kan iedereen de uren-app met zijn eigen agenda en AFAS gebruiken.</p>
+    ${kstep(!!(status.alive && a && a.calendar === 'granted'), '1. Meter op deze Mac', meter)}
+    ${kstep(own.length > 0 ? true : null, "2. Jouw agenda's", agenda)}
+    <div id="kAfas">${afasSteps()}</div>
+    ${kstep(quickNrs().length > 0 ? true : null, '5. Vaste posten en aanvulling', `Deze posten staan in het rechtsklikmenu; de aanvulpost vult afgesloten weken aan tot ${S.weekHours} uur.
+      <div class="grid3"><div class="field" style="margin:0"><label>Vaste posten (AFAS-nrs)</label><input type="text" data-sf="quickNrs" value="${esc(S.quickNrs || '')}"></div>
+      <div class="field" style="margin:0"><label>Aanvulpost</label><input type="text" data-sf="fillNr" value="${esc(S.fillNr || '')}"></div>
+      <div class="field" style="margin:0"><label>Standaard werksoort</label><input type="text" data-sf="defaultWerksoort" value="${esc(S.defaultWerksoort || '')}"></div></div>`)}
+    ${kstep(status.appVersion ? (S.updateUrl ? true : null) : null, '6. Updates', status.appVersion
+      ? `App ${esc(status.appVersion)}, schermen ${esc(status.webVersion || PAGE_VERSION)}. Kleine aanpassingen worden vanaf dit adres opgehaald (bij het starten en elke 6 uur); de app zelf hoeft daarvoor niet opnieuw geïnstalleerd te worden.
+        <div class="row" style="margin-top:8px"><input type="text" data-sf="updateUrl" value="${esc(S.updateUrl || '')}" placeholder="https://… /index.html"><button class="btn sm" data-act="checkUpdate" style="flex:0">Nu controleren</button></div>
+        <div class="small muted" style="margin-top:4px" id="updateResult">${esc(status.updateResult || '')}</div>`
+      : `Schermen ${esc(PAGE_VERSION)}. Automatische updates werken in de Mac-app Uren (DMG).`)}
+    ${kstep(canAsk() ? true : null, '7. Collega voor vragen (optioneel)', `Als je niet weet op welk project iets hoort, zet de app een Slack-bericht voor deze collega klaar.
+      <div class="grid3"><div class="field" style="margin:0"><label>Naam</label><input type="text" data-sf="askName" value="${esc(S.askName || '')}" placeholder="bijv. Irene"></div>
+      <div class="field" style="margin:0"><label>Link naar jullie Slack-DM</label><input type="text" data-sf="askSlack" value="${esc(S.askSlack || '')}" placeholder="https://…slack.com/archives/…"></div></div>`)}
+  </div>`;
+}
+function renderSettings() {
+  const S = state.settings;
+  const a = status.agent;
+  const led = (ok) => `<span class="led" style="background:${ok === true ? 'var(--ok)' : ok === false ? 'var(--bad)' : 'var(--warn)'}"></span>`;
+  const autoRows = a && a.automation ? Object.entries(a.automation).map(([k, v]) => `<div class="stat">${led(v === 'granted')}Browser ${esc(k)}: ${v === 'granted' ? 'URL wordt gelezen' : 'geen toestemming'}</div>`).join('') : '';
+  let html = koppelingenCard() + `<div class="split">
+    <div class="card section"><h2>Meter</h2>
+      <div class="stat">${led(status.alive)}${status.alive ? 'Draait' + (a.paused ? ', gepauzeerd' : '') : 'Draait niet'}</div>
+      ${a ? `<div class="stat">${led(a.calendar === 'granted' ? true : a.calendar === 'denied' ? false : null)}Agenda: ${a.calendar === 'granted' ? `toegang · ${a.calendarEvents} afspraken ingelezen` : a.calendar === 'denied' ? 'geweigerd' : 'nog niet gevraagd'}</div>
+      <div class="stat">${led(a.accessibility)}Toegankelijkheid: ${a.accessibility ? 'aan (venstertitels en bestanden worden gelezen)' : 'uit (alleen appnamen)'}</div>${autoRows}
+      ${a.current && a.current.app ? `<div class="box small"><b>Nu:</b> ${esc(a.current.app)}${a.current.title ? ' · ' + esc(a.current.title) : ''}${a.current.url ? '<br>' + esc(a.current.url) : ''}${a.current.doc ? '<br>' + esc(a.current.doc) : ''}</div>` : ''}` : ''}
+      <h3 style="margin-top:16px">Installeren en toestemming</h3>
+      <ol class="small" style="padding-left:18px;margin:0">
+        <li>Open de app <b>Uren</b> (uit de DMG naar Programma’s gesleept). Hij zet ⏱ in de menubalk en start voortaan vanzelf bij het inloggen.</li>
+        <li>Klik <b>Sta toe</b> bij de vraag om je agenda te lezen.</li>
+        <li>Zet <b>Uren</b> aan bij Systeeminstellingen › Privacy en beveiliging › Toegankelijkheid (voor venstertitels en bestanden). Via het ⏱-menu kom je er direct.</li>
+        <li>De eerste keer dat je Chrome of Safari gebruikt vraagt macOS of de meter die mag uitlezen: <b>OK</b>.</li>
+      </ol>
+      <p class="small muted">Alles blijft lokaal in <code>${esc(status.dataDir || '~/Library/Application Support/UrenApp')}</code>. Wachtwoordmanagers worden zonder titel opgeslagen, querystrings uit URL's worden weggelaten. Na 5 minuten zonder muis of toetsenbord, of met een vergrendeld scherm, stopt het meten.</p>
+    </div>
+    <div class="card section"><h2>Rekenregels</h2>
+      <div class="row"><div class="field"><label>Werkdag begint</label><input type="time" data-sf="dayStart" value="${S.dayStart}"></div><div class="field"><label>Werkdag eindigt</label><input type="time" data-sf="dayEnd" value="${S.dayEnd}"></div></div>
+      <div class="row"><div class="field"><label>Afronden per dag per project</label><select data-sf="rounding">${[[0.25, 'Kwartier (0,25)'], [0.5, 'Half uur (0,5)'], [0.1, 'Tiende uur (0,1)'], [0, 'Niet afronden']].map(([v, l]) => `<option value="${v}" ${Number(S.rounding) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Decimaalteken</label><select data-sf="decimal"><option value="," ${S.decimal === ',' ? 'selected' : ''}>Komma (7,5)</option><option value="." ${S.decimal === '.' ? 'selected' : ''}>Punt (7.5)</option></select></div></div>
+      <div class="row"><div class="field"><label>Activiteit samenvoegen bij gaten tot (min)</label><input type="number" min="1" max="60" data-sf="chunkGap" value="${S.chunkGap}"></div>
+      <div class="field"><label>Activiteitsblok negeren onder (min)</label><input type="number" min="0" max="30" data-sf="minChunk" value="${S.minChunk}"></div></div>
+      <div class="field"><label>Placeholder-afspraken (exacte titel, komma gescheiden)</label><input type="text" data-sf="placeholders" value="${esc(S.placeholders || '')}" placeholder="blok"><div class="small muted">Deze afspraken tellen niet als blok; de gemeten activiteit vult die tijd in.</div></div>
+      
+      <div class="field"><label>Uren voor een volle dag (verlof, ziek)</label><input type="number" min="1" max="12" step="0.5" data-sf="fullDayHours" value="${S.fullDayHours}"></div>
+      <div class="check"><input type="checkbox" data-sf="fillGaps" id="sf1" ${S.fillGaps ? 'checked' : ''}><label for="sf1">Korte pauzes binnen een activiteitsblok meetellen (lezen, nadenken)</label></div>
+      <div class="check"><input type="checkbox" data-sf="countOutside" id="sf2" ${S.countOutside ? 'checked' : ''}><label for="sf2">Activiteit buiten werktijd automatisch meetellen</label></div>
+      <div class="check"><input type="checkbox" data-sf="includeFree" id="sf3" ${S.includeFree ? 'checked' : ''}><label for="sf3">Afspraken die als "vrij" staan ook meetellen</label></div>
+      <div class="check"><input type="checkbox" data-sf="weekend" id="sf4" ${S.weekend ? 'checked' : ''}><label for="sf4">Weekend tonen in weekoverzicht</label></div>
+    </div></div>
+    <div class="card section"><h2>Agenda's</h2><p class="small muted" style="margin-top:0">Kies welke agenda's meetellen. Projecten worden per afspraak gekozen, nooit voor een hele agenda tegelijk.</p>`;
+  if (!calData.calendars.length) html += `<p class="muted">Nog geen agenda's ingelezen.</p>`;
+  else {
+    html += `<table><thead><tr><th style="width:60px">Telt mee</th><th>Agenda</th><th>Account</th></tr></thead><tbody>`;
+    for (const c of calData.calendars) html += `<tr><td style="text-align:center"><input type="checkbox" data-calon="${esc(c.id)}" ${state.calendarsOff[c.id] ? '' : 'checked'}></td>
+      <td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c.color};margin-right:6px"></span>${esc(c.title)}</td><td class="muted">${esc(c.source)}</td></tr>`;
+    html += `</tbody></table>`;
+  }
+  html += `</div><div class="card section"><h2>Back-up</h2><p class="small muted" style="margin-top:0">Projecten, regels en toewijzingen worden ook dagelijks automatisch geback-upt in de datamap.</p>
+    <div class="actions"><button class="btn" data-act="exportState">Exporteer instellingen</button><label class="btn">Importeer…<input type="file" id="importFile" accept="application/json" hidden></label></div></div>`;
+  return html;
+}
+
+// ---------- Events ----------
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-tab],[data-b],[data-openweek],[data-unkopen],[data-add],[data-act],[data-goto],[data-copy],[data-copyrow],[data-delproj],#jumpUn,#agentPill');
+  if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; closeDrawer(); render(); return; }
+  if (t.dataset.goto) { tab = t.dataset.goto; render(); return; }
+  if (t.id === 'agentPill') { tab = 'instellingen'; render(); return; }
+  if (t.id === 'jumpUn') { const el = document.querySelector('.blk.un'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.click(); } return; }
+  if (t.dataset.b) { openBlock(t.dataset.b); return; }
+  if (t.dataset.unkopen !== undefined) { e.preventDefault(); openUnknownDrawer(catchupData().unknown[+t.dataset.unkopen]); return; }
+  if (t.dataset.openweek) { tab = 'week'; gotoWeek(parseKey(t.dataset.openweek)); return; }
+  if (t.dataset.add) { openManualDrawer(null, t.dataset.add); return; }
+  if (t.dataset.copy !== undefined) { copyText(t.dataset.copy, `Gekopieerd: ${t.dataset.copy || '(leeg)'}`); return; }
+  if (t.dataset.copyrow) {
+    const r = reportRows().find((x) => x.pid === t.dataset.copyrow);
+    if (r) copyText([r.p.nr, ...r.days.map(fmtNum)].join('\t'), `Rij ${r.p.nr} gekopieerd`);
+    return;
+  }
+  if (t.dataset.delproj) {
+    const p = proj(t.dataset.delproj);
+    if (p && confirm(`Project ${p.nr} ${p.name} verwijderen? Toegewezen uren worden dan weer "niet toegewezen".`)) {
+      state.projects = state.projects.filter((x) => x !== p); save(); render();
+    }
+    return;
+  }
+  const act = t.dataset.act;
+  const actions = {
+    saveCal, resetCal, assignAll, addRule, saveManual, deleteManual, importPaste, askBlock, openQuestions,
+    pickSuggest: () => pickFor(t.dataset.scope, t.dataset.nr),
+    checkUpdate: async () => {
+      const el = document.getElementById('updateResult'); if (el) el.textContent = 'Controleren…';
+      try { const r = await api('/api/update-check', { method: 'POST' }); if (el) el.textContent = r.result; await loadStatus(); }
+      catch { if (el) el.textContent = 'Controleren lukte niet'; }
+    },
+    importRows: () => {
+      const rows = ((afasTabInfo.tab || {}).rows || []).filter((r) => !state.projects.some((p) => p.nr === r.nr));
+      for (const r of rows) {
+        const c = catalog.find((x) => x.nr === r.nr) || {};
+        state.projects.splice(state.projects.length - 1, 0, { id: 'p' + r.nr, nr: r.nr, name: r.name || c.name || r.nr, admin: r.relatie || c.client || '', werksoort: r.werksoort || state.settings.defaultWerksoort || 'VIDEO', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true, source: 'afas-matrix' });
+      }
+      save(); render(); toast(`${rows.length} projecten geïmporteerd uit AFAS`);
+    },
+    ignoreUnknown: () => {
+      const u = drawerCtx.unknown;
+      for (const o of u.occ) state.assign['ev:' + o.ev.id] = 'ignore';
+      save(); closeDrawer(); render(); toast(`"${u.title}" telt niet meer mee`);
+    },
+    overtime: () => {
+      const b = drawerCtx.b, ev = b.ref;
+      const pid = document.getElementById('cProj').value || b.pid || '';
+      if (!pid) return toast('Kies eerst het project van deze afspraak');
+      const start = new Date(ev.e), end = new Date(ev.e + Number(t.dataset.h) * 36e5);
+      const sameDay = dkey(start) === dkey(end);
+      state.manual.push({ id: uid(), date: dkey(start), start: fmtTime(ev.e), end: sameDay ? fmtTime(end.getTime()) : '23:59', projectId: pid, note: 'Uitloop ' + (ev.title || '').trim() });
+      save(); closeDrawer(); render(); toast(`Uitloop tot ${sameDay ? fmtTime(end.getTime()) : '23:59'} toegevoegd`);
+    },
+    pickNr: () => { const inp = document.querySelector(`[data-nrinput][data-scope="${t.dataset.scope}"]`); pickFor(t.dataset.scope, nrFrom(inp && inp.value)); },
+    askUnknownOne: () => {
+      const u = drawerCtx.unknown;
+      const text = `"${u.title}" (${u.dates.slice(0, 4).map((k) => { const d = parseKey(k); return d.getDate() + ' ' + MONTHS[d.getMonth()]; }).join(', ')}, ${fmtHours(u.min / 60)} uur): op welk AFAS-project schrijf ik dit?`;
+      if (!state.questions.some((q) => q.text === text)) state.questions.push({ id: 'q-' + uid(), text, keywords: '', suggest: '', status: 'gevraagd' });
+      save(); closeDrawer(); render(); copyAndOpenSlack(askMessage([text]));
+    },
+    askUnknown: () => {
+      const { unknown } = catchupData();
+      const picked = [...document.querySelectorAll('[data-unk]:checked')].map((c) => unknown[+c.dataset.unk]);
+      if (!picked.length) return toast('Vink eerst de items aan waarover je twijfelt');
+      const lines = picked.map((u) => {
+        const ds = u.dates.slice(0, 4).map((k) => { const d = parseKey(k); return d.getDate() + ' ' + MONTHS[d.getMonth()]; }).join(', ');
+        const text = `"${u.title}" (${ds}${u.dates.length > 4 ? ' e.a.' : ''}, ${fmtHours(u.min / 60)} uur): op welk AFAS-project schrijf ik dit?`;
+        if (!state.questions.some((q) => q.text === text)) state.questions.push({ id: 'q-' + uid(), text, keywords: u.title, suggest: '', status: 'gevraagd' });
+        return text;
+      });
+      save(); render(); copyAndOpenSlack(askMessage(lines));
+    },
+    askQ: () => copyAndOpenSlack(askMessage([questionFrom(t).text])),
+    askAll: () => copyAndOpenSlack(askMessage(state.questions.filter((q) => q.status !== 'beantwoord').map((q) => q.text))),
+    answerQ: () => {
+      const q = questionFrom(t);
+      let pid = document.querySelector(`[data-qans="${q.id}"]`).value;
+      const nr = document.querySelector(`[data-qnr="${q.id}"]`).value.trim();
+      if (nr) {
+        let p = state.projects.find((x) => x.nr === nr);
+        if (!p) {
+          p = { id: 'p' + nr, nr, name: 'Project ' + nr + ' (naam aanvullen)', admin: '', werksoort: state.settings.defaultWerksoort || 'VIDEO', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true };
+          state.projects.splice(state.projects.length - 1, 0, p);
+          toast(`Project ${nr} aangemaakt; vul de naam aan bij Projecten`);
+        }
+        pid = p.id;
+      }
+      if (!pid) return toast('Kies het project of typ het nummer dat je collega noemde');
+      for (const k of String(q.keywords || '').split(',')) addKeyword(pid, k);
+      if (q.ref) state.assign[q.ref] = pid;
+      q.status = 'beantwoord'; q.answer = pid;
+      save(); render(); openQuestions(); toast('Verwerkt');
+    },
+    dropQ: () => { questionFrom(t).status = 'beantwoord'; save(); render(); openQuestions(); },
+    pasteProjects: openPasteProjects,
+    addProject: () => { state.projects.splice(state.projects.length - 1, 0, { id: 'p' + uid(), nr: '', name: 'Nieuw project', admin: '', werksoort: state.settings.defaultWerksoort || 'VIDEO', color: PALETTE[state.projects.length % PALETTE.length], keywords: '', fullDay: false, active: true }); save(); render(); },
+    copyTable: () => copyText(tableText('\t'), 'Tabel gekopieerd'),
+    csv: () => {
+      const blob = new Blob(['﻿' + tableText(';')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `uren-${weekId()}.csv`; a.click();
+    },
+    toggleClosed: () => {
+      const k = weekId();
+      state.closed = state.closed || {};
+      if (state.closed[k]) { if (!confirm('Week heropenen? De export wordt dan pas weer gemaakt als je de week opnieuw afsluit.')) return; delete state.closed[k]; if (state.exports) delete state.exports[dkey(week)]; }
+      else state.closed[k] = new Date().toISOString();
+      save(); render();
+    },
+    copyExport: () => copyText(exportText(), 'Export gekopieerd'),
+    afasRequest: async () => {
+      await api('/api/afas-request', { method: 'POST', body: JSON.stringify({ monday: dkey(week) }) });
+      await pollAfasTab();
+      toast(afasTabInfo.tab && afasTabInfo.tab.monday === dkey(week) ? 'Wordt nu ingevuld in je AFAS-tabblad' : `Ga naar je AFAS-tabblad en kies week ${isoWeek(week).week}; dan wordt hij ingevuld`);
+    },
+    toggleDone: () => { const k = weekId(); if (state.reported[k]) delete state.reported[k]; else state.reported[k] = new Date().toISOString(); save(); render(); },
+    exportState: () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'uren-instellingen.json'; a.click(); },
+  };
+  if (actions[act]) actions[act]();
+});
+
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.grp !== undefined && drawerCtx && drawerCtx.groups) {
+    assignPieces(drawerCtx.groups[+t.dataset.grp].pieces, t.value); noteRecent(t.value);
+    save(); const ref = drawerCtx.b; render();
+    // Lade open houden met verse berekening van hetzelfde blok.
+    const day = weekData.days.find((d) => d.key === dkey(new Date(ref.s)));
+    const nb = day && day.blocks.find((b) => b.kind === 'act' && b.s <= ref.s + 1 && b.e >= ref.s);
+    if (nb) { drawerCtx = { b: nb }; openActDrawer(nb); }
+    return;
+  }
+  if (t.dataset.unkproj !== undefined && t.value) {
+    const u = catchupData().unknown[+t.dataset.unkproj];
+    addKeyword(t.value, u.title);
+    save(); render(); return;
+  }
+  if (t.dataset.pf) {
+    const p = state.projects[+t.closest('tr').dataset.pi];
+    p[t.dataset.pf] = t.type === 'checkbox' ? t.checked : t.value;
+    if (t.dataset.pf === 'nr' && p.id.startsWith('p') && !state.projects.some((x) => x !== p && x.id === 'p' + p.nr)) { /* id blijft stabiel */ }
+    save(); return;
+  }
+  if (t.dataset.sf) {
+    const k = t.dataset.sf;
+    state.settings[k] = t.type === 'checkbox' ? t.checked : t.type === 'number' || k === 'rounding' ? Number(t.value) : t.value;
+    save(); computeWeek(); if (k === 'catchupFrom') { catchupActs = null; render(); } return;
+  }
+  if (t.dataset.ownsrc !== undefined) {
+    const src = t.dataset.ownsrc.toLowerCase();
+    let own = ownList().filter((x) => x !== src);
+    if (t.checked) own.push(src);
+    state.settings.ownSources = own.join(', ');
+    // Alleen agenda's van je eigen accounts tellen mee; feestdagen en verjaardagen nooit.
+    for (const c of calData.calendars) {
+      const mine = own.includes(String(c.source || '').toLowerCase()) && !/feestdag|holiday|birthday|verjaardag/i.test(c.title);
+      if (mine) delete state.calendarsOff[c.id]; else state.calendarsOff[c.id] = true;
+    }
+    save(); render(); return;
+  }
+  if (t.dataset.calon) { if (t.checked) delete state.calendarsOff[t.dataset.calon]; else state.calendarsOff[t.dataset.calon] = true; save(); return; }
+  if (t.dataset.calmap) { if (t.value) state.calendarMap[t.dataset.calmap] = t.value; else delete state.calendarMap[t.dataset.calmap]; save(); return; }
+  if (t.id === 'importFile' && t.files[0]) {
+    t.files[0].text().then((txt) => { state = normalize(JSON.parse(txt)); save(); render(); toast('Instellingen geïmporteerd'); }).catch(() => toast('Ongeldig bestand'));
+  }
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.dataset.nrinput === undefined) return;
+  const v = e.target.value.trim();
+  const hint = e.target.closest('div').parentElement.querySelector('[data-nrhint]');
+  const nr = nrFrom(v);
+  const c = nr && catalog.find((x) => x.nr === nr);
+  if (hint) hint.textContent = c ? `${c.nr} ${c.name} · ${c.client}${c.start ? ' · aanvang ' + c.start : ''}` : (nr ? 'nummer niet in de catalogus' : '');
+  const box = e.target.closest('div').parentElement.querySelector('[data-nrresults]');
+  if (box) {
+    const res = v.length >= 2 && !c ? searchCatalog(v) : [];
+    box.innerHTML = res.map((r) => `<button data-act="pickSuggest" data-nr="${r.nr}" data-scope="${e.target.dataset.scope}"><b class="mono">${r.nr}</b> ${esc(r.name)} <span class="muted">· ${esc(r.client)}${r.start ? ' · ' + r.start : ''}${r.own ? ' · in je lijst' : ''}</span></button>`).join('') || (v.length >= 2 && !c ? '<span class="small muted">Geen project gevonden</span>' : '');
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.dataset.nrinput === undefined) return;
+  e.preventDefault();
+  pickFor(e.target.dataset.scope, nrFrom(e.target.value));
+});
+// ---------- Slepen in het weekraster ----------
+// Lege plek slepen = nieuw handmatig blok. Handmatig blok slepen = verplaatsen (ook naar een andere dag). Onderrand = eindtijd.
+const SNAP = 15;
+const snap = (min) => Math.round(min / SNAP) * SNAP;
+const minToHHMM = (min) => { min = Math.max(0, Math.min(24 * 60 - 1, min)); return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`; };
+const hhmmToMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+function colAt(x, y) { const el = document.elementFromPoint(x, y); return el && el.closest('.col[data-col]'); }
+function minAt(col, y) { return snap((y - col.getBoundingClientRect().top) / PX + gridH0 * 60); }
+let drag = null, suppressClick = false;
+document.addEventListener('pointerdown', (e) => {
+  if (tab !== 'week' || e.button !== 0) return;
+  const blk = e.target.closest('.blk');
+  const col = e.target.closest('.col[data-col]');
+  if (!col) return;
+  if (blk && blk.classList.contains('man')) {
+    const m = state.manual.find((x) => x.id === blk.dataset.mid);
+    if (!m) return;
+    const resize = !!e.target.closest('.resz');
+    drag = { type: resize ? 'resize' : 'move', m, blk, x0: e.clientX, y0: e.clientY, s0: hhmmToMin(m.start), e0: hhmmToMin(m.end), moved: false, grab: minAt(col, e.clientY) - hhmmToMin(m.start) };
+  } else if (!blk) {
+    const start = minAt(col, e.clientY);
+    const ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+    col.appendChild(ghost);
+    drag = { type: 'create', col, start, end: start + SNAP, ghost, moved: false, y0: e.clientY };
+  } else return;
+  e.preventDefault();
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.abs(e.clientY - (drag.y0 ?? 0)) < 4 && Math.abs(e.clientX - (drag.x0 ?? e.clientX)) < 4) return;
+  drag.moved = true;
+  if (drag.type === 'create') {
+    const cur = minAt(drag.col, e.clientY);
+    drag.a = Math.min(drag.start, cur); drag.b = Math.max(drag.start + SNAP, cur);
+    drag.ghost.style.top = (drag.a - gridH0 * 60) * PX + 'px';
+    drag.ghost.style.height = Math.max(10, (drag.b - drag.a) * PX - 2) + 'px';
+    drag.ghost.textContent = `${minToHHMM(drag.a)}-${minToHHMM(drag.b)}`;
+    return;
+  }
+  const col = colAt(e.clientX, e.clientY);
+  drag.blk.classList.add('dragging');
+  if (drag.type === 'resize') {
+    const c = drag.blk.closest('.col');
+    drag.ns = drag.s0; drag.ne = Math.max(drag.s0 + SNAP, minAt(c, e.clientY));
+    drag.blk.style.height = Math.max(14, (drag.ne - drag.ns) * PX - 2) + 'px';
+  } else {
+    if (!col) return;
+    const dur = drag.e0 - drag.s0;
+    drag.ns = Math.max(0, minAt(col, e.clientY) - snap(drag.grab)); drag.ne = Math.min(24 * 60 - 1, drag.ns + dur);
+    drag.date = col.dataset.col;
+    if (drag.blk.parentElement !== col) col.appendChild(drag.blk);
+    drag.blk.style.top = (drag.ns - gridH0 * 60) * PX + 'px';
+    drag.blk.style.left = '2px'; drag.blk.style.width = 'calc(100% - 4px)';
+  }
+  const meta = drag.blk.querySelector('.m');
+  if (meta) meta.textContent = `${minToHHMM(drag.ns)}-${minToHHMM(drag.ne)}`;
+});
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.type === 'create') {
+    d.ghost.remove();
+    if (d.moved && d.b - d.a >= SNAP) openManualDrawer(null, d.col.dataset.col, { start: minToHHMM(d.a), end: minToHHMM(d.b) });
+    return;
+  }
+  if (!d.moved) return; // gewone klik: de lade opent via de klikafhandeling
+  suppressClick = true; setTimeout(() => (suppressClick = false), 0);
+  d.m.start = minToHHMM(d.ns); d.m.end = minToHHMM(d.ne);
+  if (d.date) d.m.date = d.date;
+  save(); render();
+  toast(`Blok verplaatst naar ${minToHHMM(d.ns)}-${minToHHMM(d.ne)}`);
+});
+document.addEventListener('click', (e) => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+// ---------- Rechtsklikmenu: vaste interne posten ----------
+const quickNrs = () => String(state.settings.quickNrs || '').split(/[,\s]+/).filter((x) => /^\d{6}$/.test(x));
+let ctx = null;
+function closeCtx() { const el = document.querySelector('.ctxmenu'); if (el) el.remove(); ctx = null; }
+function openCtx(x, y, target) {
+  closeCtx();
+  ctx = target;
+  const items = quickNrs().map((nr) => state.projects.find((p) => p.nr === nr) || ensureProject(nr)).filter(Boolean);
+  const quickIds = new Set(items.map((p) => p.id));
+  const weekIds = weekData ? Object.entries(weekData.totals).sort((a, b) => b[1] - a[1]).map(([pid]) => pid) : [];
+  const recent = [...new Set((state.recent || []).concat(weekIds))].filter((pid) => pid !== 'ignore' && !quickIds.has(pid) && proj(pid)).slice(0, 6).map(proj);
+  const btn = (p, short) => `<button data-ctxpid="${p.id}"><span class="sw" style="background:${p.color}"></span><span class="mono">${esc(p.nr)}</span> ${esc(short ? p.name.replace(/^(Intern|Indirect|TVP) - /, '') : p.name)}</button>`;
+  const head = target.kind === 'new' ? `Nieuw blok ${target.start}-${target.end}` : 'Toewijzen aan';
+  const el = document.createElement('div');
+  el.className = 'ctxmenu';
+  el.innerHTML = `<div class="hd">${esc(head)}</div>`
+    + (recent.length ? `<div class="hd">Recent</div>` + recent.map((p) => btn(p, false)).join('') + `<hr><div class="hd">Vaste posten</div>` : '')
+    + items.map((p) => btn(p, true)).join('')
+    + `<button data-ctxpid="ignore"><span class="sw" style="background:${projColor('ignore')}"></span>Negeren (privé / pauze)</button><hr>`
+    + `<button data-ctxother="1">Ander project…</button>`;
+  document.body.appendChild(el);
+  const r = el.getBoundingClientRect();
+  el.style.left = Math.min(x, innerWidth - r.width - 8) + 'px';
+  el.style.top = Math.min(y, innerHeight - r.height - 8) + 'px';
+  const first = el.querySelector('button'); if (first) first.focus();
+}
+document.addEventListener('contextmenu', (e) => {
+  if (tab !== 'week') return;
+  const blkEl = e.target.closest('[data-b]');
+  const col = e.target.closest('.col[data-col]');
+  if (blkEl) {
+    e.preventDefault();
+    const b = findBlock(blkEl.dataset.b);
+    if (b) openCtx(e.clientX, e.clientY, { kind: 'block', b, ref: blkEl.dataset.b });
+  } else if (col) {
+    e.preventDefault();
+    const start = Math.max(0, minAt(col, e.clientY));
+    openCtx(e.clientX, e.clientY, { kind: 'new', date: col.dataset.col, start: minToHHMM(start), end: minToHHMM(start + 60) });
+  }
+});
+document.addEventListener('mousedown', (e) => { if (ctx && !e.target.closest('.ctxmenu')) closeCtx(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ctx) closeCtx(); });
+window.addEventListener('scroll', () => { if (ctx) closeCtx(); }, true);
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.ctxmenu button');
+  if (!btn || !ctx) return;
+  const t = ctx; closeCtx();
+  if (btn.dataset.ctxother) {
+    if (t.kind === 'new') openManualDrawer(null, t.date, { start: t.start, end: t.end });
+    else openBlock(t.ref);
+    return;
+  }
+  const pid = btn.dataset.ctxpid;
+  noteRecent(pid);
+  if (t.kind === 'new') {
+    state.manual.push({ id: uid(), date: t.date, start: t.start, end: t.end, projectId: pid, note: '' });
+  } else {
+    const b = t.b;
+    if (b.kind === 'cal') state.assign['ev:' + b.ref.id] = pid;
+    else if (b.kind === 'act') assignPieces(b.pieces, pid);
+    else if (b.kind === 'manual') b.ref.projectId = pid;
+  }
+  save(); render();
+  toast(t.kind === 'new' ? `Blok ${t.start}-${t.end} toegevoegd op ${projLabel(pid)}` : `Toegewezen aan ${projLabel(pid)}`);
+});
+document.getElementById('dClose').onclick = closeDrawer;
+async function gotoWeek(d) { week = mondayOf(d); renderHeader(); await loadActivity(); render(); }
+document.getElementById('prevWeek').onclick = () => gotoWeek(addDays(week, -7));
+document.getElementById('nextWeek').onclick = () => gotoWeek(addDays(week, 7));
+document.getElementById('thisWeek').onclick = () => gotoWeek(new Date());
+document.getElementById('refresh').onclick = async () => {
+  const btn = document.getElementById('refresh');
+  btn.classList.add('busy');
+  const before = calData.events.length;
+  let ok = false;
+  try { ok = (await api('/api/refresh', { method: 'POST' })).ok; } catch {}
+  await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), loadStatus()]);
+  btn.classList.remove('busy');
+  render();
+  if (!ok) return toast(status.alive ? 'De meter reageerde niet; probeer het zo nog eens' : 'De meter draait niet, dus de agenda kan niet ververst worden');
+  const diff = calData.events.length - before;
+  toast(`Agenda opnieuw ingelezen: ${calData.events.length} afspraken${diff ? ` (${diff > 0 ? '+' : ''}${diff})` : ''}`);
+};
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDrawer();
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowLeft') gotoWeek(addDays(week, -7));
+  if (e.key === 'ArrowRight') gotoWeek(addDays(week, 7));
+});
+
+async function boot() {
+  try { state = normalize(await api('/api/state')); } catch { state = defaultState(); }
+  save();
+  await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), loadStatus(), loadCatalog()]);
+  render();
+  setInterval(loadStatus, 15000);
+  // Elke minuut verse activiteit, tenzij de gebruiker net iets bewerkt.
+  setInterval(async () => {
+    if (document.getElementById('drawer').classList.contains('open')) return;
+    if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {})]);
+    render();
+  }, 60000);
+}
+boot();
+</script>
+</body>
+</html>
