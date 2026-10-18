@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uren</title>
-<meta name="uren-web-version" content="2026.10.13.4">
+<meta name="uren-web-version" content="2026.10.18.1">
 <meta name="uren-min-app" content="2.0">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
@@ -141,6 +141,10 @@ a:hover { text-decoration: underline; }
 .gutter .h { position: absolute; right: 6px; font-size: var(--text-2xs); color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
 .col { position: relative; border-left: 1px solid var(--line); }
 .col.pre { background: repeating-linear-gradient(135deg, var(--panel-soft) 0 6px, var(--panel) 6px 12px); }
+.dayhead.wkc { padding: var(--space-2) 4px; text-align: center; cursor: pointer; background: var(--panel-soft); }
+.dayhead.wkc:hover, .col.wkc:hover { background: var(--accent-soft); }
+.dayhead.wkc .d { font-size: var(--text-xs); line-height: 1.3; }
+.col.wkc { cursor: pointer; background: var(--panel-soft); }
 .col .hl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--panel-soft); }
 .col .work { position: absolute; left: 0; right: 0; background: rgba(0, 0, 220, 0.025); }
 .col .now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--rose); z-index: 5; }
@@ -767,11 +771,27 @@ function renderMonth() {
 
 // ---------- Weergave: week ----------
 const PX = 0.9; // pixels per minuut
+// Weekend: ingeklapt, tenzij je hem openklapt, er uren staan of het nu weekend is in deze week.
+let weekendPref = (() => { try { return localStorage.getItem('uren-weekend') || ''; } catch { return ''; } })();
+function weekendOpen() {
+  if (state.settings.weekend) return true;
+  if (weekendPref === 'open') return true;
+  if (weekendPref === 'dicht') return false;
+  const wk = weekData.days.slice(5);
+  return wk.some((d) => d.total > 0 || d.key === dkey(new Date()));
+}
+function toggleWeekend() {
+  weekendPref = weekendOpen() ? 'dicht' : 'open';
+  try { localStorage.setItem('uren-weekend', weekendPref); } catch {}
+  render();
+}
 let gridH0 = 8; // eerste uur in het weekraster, nodig om een muispositie om te rekenen naar een tijd
 function renderWeek() {
   const S = state.settings;
-  const nDays = S.weekend ? 7 : 5;
+  const wkOpen = weekendOpen();
+  const nDays = wkOpen ? 7 : 5;
   const days = weekData.days.slice(0, nDays);
+  const wkDays = weekData.days.slice(5);
   const toH = (t) => { const [h, m] = t.split(':').map(Number); return h + (m || 0) / 60; };
   let h0 = Math.floor(toH(S.dayStart)), h1 = Math.ceil(toH(S.dayEnd));
   for (const d of days) for (const b of d.blocks) {
@@ -796,14 +816,17 @@ function renderWeek() {
   if (openQ.length) banner += `<div class="banner">${openQ.length} ${openQ.length === 1 ? 'vraag' : 'vragen'} aan ${esc(state.settings.askName)} staan open. Tot er antwoord is, wordt daar niets automatisch op toegewezen. <button class="btn sm" data-act="openQuestions">Bekijk</button></div>`;
   const todayKey = dkey(new Date());
   let html = `${banner}<div class="summary"><span class="chip total">Totaal <b>${fmtHours(weekData.total / 60)}</b></span>${chips}${unChip}</div>`;
-  html += `<div class="card grid" style="grid-template-columns:54px repeat(${nDays}, 1fr)">`;
+  html += `<div class="card grid" style="grid-template-columns:54px repeat(${nDays}, 1fr)${wkOpen ? '' : ' 44px 44px'}">`;
   html += `<div class="dayhead" style="border-left:0"></div>`;
   days.forEach((d, i) => {
     const allDays = d.allDay.map((b, j) => `<div class="allday${b.removed ? ' rem' : ''}" data-b="${i}:a${j}" style="border-left-color:${b.removed ? '#b5bec8' : b.pid ? projColor(b.pid) : 'var(--unassigned)'}" title="${esc(b.title)}${b.removed ? ' (verwijderd)' : ''}">${esc(b.title)}${b.min ? ' · ' + fmtHours(b.min / 60) + 'u' : ''}</div>`).join('');
     html += `<div class="dayhead"><div class="d ${d.key === todayKey ? 'today' : ''}">${DAYS[i]} ${d.date.getDate()} ${MONTHS[d.date.getMonth()]}</div>
       <div class="tot">${d.beforeStart ? 'voor startdatum' : fmtHours(d.total / 60) + ' u'}${d.unassigned > 1 ? ` · <span class="open">${fmtHours(d.unassigned / 60)} open</span>` : ''}</div>
-      <button class="btn ghost sm add" data-add="${d.key}" title="Handmatig blok toevoegen">＋</button>
+      <button class="btn ghost sm add" data-add="${d.key}" title="Handmatig blok toevoegen">＋</button>${i === 5 && !S.weekend ? '<button class="btn ghost sm" style="position:absolute;right:34px;top:6px;opacity:.55" data-act="toggleWeekend" title="Weekend inklappen">‹</button>' : ''}
       ${allDays ? `<div class="alldays">${allDays}</div>` : ''}</div>`;
+  });
+  if (!wkOpen) wkDays.forEach((d, j) => {
+    html += `<div class="dayhead wkc" data-act="toggleWeekend" title="Weekend uitklappen om uren te loggen"><div class="d ${d.key === todayKey ? 'today' : ''}">${DAYS[5 + j]}<br>${d.date.getDate()}</div>${d.total ? `<div class="tot">${fmtHours(d.total / 60)}</div>` : ''}${j === 0 ? '<div class="tot">›</div>' : ''}</div>`;
   });
   html += `<div class="gutter" style="height:${height}px">`;
   for (let h = h0 + 1; h < h1; h++) html += `<div class="h" style="top:${(h - h0) * 60 * PX}px">${pad(h)}:00</div>`;
@@ -828,6 +851,7 @@ function renderWeek() {
     });
     html += `</div>`;
   });
+  if (!wkOpen) wkDays.forEach(() => { html += `<div class="col wkc" data-act="toggleWeekend" title="Weekend uitklappen" style="height:${height}px"></div>`; });
   html += `</div>`;
   if (!calData.events.length && !activity.length) html += `<p class="muted small" style="margin-top:12px">Nog geen agenda of activiteit voor deze week. Zodra de meter loopt en toegang heeft, verschijnt hier alles vanzelf.</p>`;
   return html;
@@ -1651,7 +1675,7 @@ function renderSettings() {
       <div class="check"><input type="checkbox" data-sf="fillGaps" id="sf1" ${S.fillGaps ? 'checked' : ''}><label for="sf1">Korte pauzes binnen een activiteitsblok meetellen (lezen, nadenken)</label></div>
       <div class="check"><input type="checkbox" data-sf="countOutside" id="sf2" ${S.countOutside ? 'checked' : ''}><label for="sf2">Activiteit buiten werktijd automatisch meetellen</label></div>
       <div class="check"><input type="checkbox" data-sf="includeFree" id="sf3" ${S.includeFree ? 'checked' : ''}><label for="sf3">Afspraken die als "vrij" staan ook meetellen</label></div>
-      <div class="check"><input type="checkbox" data-sf="weekend" id="sf4" ${S.weekend ? 'checked' : ''}><label for="sf4">Weekend tonen in weekoverzicht</label></div>
+      <div class="check"><input type="checkbox" data-sf="weekend" id="sf4" ${S.weekend ? 'checked' : ''}><label for="sf4">Weekend altijd uitgeklapt tonen in weekoverzicht</label></div>
     </div></div>
     <div class="card section"><h2>Agenda's</h2><p class="small muted" style="margin-top:0">Kies welke agenda's meetellen. Projecten worden per afspraak gekozen, nooit voor een hele agenda tegelijk.</p>`;
   if (!calData.calendars.length) html += `<p class="muted">Nog geen agenda's ingelezen.</p>`;
@@ -1694,7 +1718,7 @@ document.addEventListener('click', async (e) => {
   const act = t.dataset.act;
   const actions = {
     clearStart: () => { state.settings.startDate = ''; catchupActs = null; save(); render(); toast('Startdatum gewist: alles telt weer mee'); },
-    saveCal, resetCal, removeCal: () => removeCal(), restoreCal: () => restoreCal(), assignAll, addRule, saveManual, deleteManual, importPaste, askBlock, openQuestions,
+    toggleWeekend, saveCal, resetCal, removeCal: () => removeCal(), restoreCal: () => restoreCal(), assignAll, addRule, saveManual, deleteManual, importPaste, askBlock, openQuestions,
     pickSuggest: () => pickFor(t.dataset.scope, t.dataset.nr),
     checkUpdate: async () => {
       const el = document.getElementById('updateResult'); if (el) el.textContent = 'Controleren…';
