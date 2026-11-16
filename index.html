@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uren</title>
-<meta name="uren-web-version" content="2026.11.16.2">
+<meta name="uren-web-version" content="2026.11.16.3">
 <meta name="uren-min-app" content="2.0">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
@@ -171,6 +171,9 @@ a:hover { text-decoration: underline; }
 .ctxmenu button { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--foreground); }
 .ctxmenu button:hover, .ctxmenu button:focus { background: var(--panel-soft); outline: none; }
 .ctxmenu .sw { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 10px; }
+.blk.sel, .allday.sel { box-shadow: 0 0 0 2px var(--blue), 0 0 0 5px rgba(0, 0, 220, .18); z-index: 5; }
+.lasso { position: fixed; z-index: 60; pointer-events: none; border: 1px solid var(--blue); background: rgba(0, 0, 220, .07); border-radius: 4px; }
+.ctxmenu .nrresults { max-height: 240px; }
 .ctxmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 .kstep { display: grid; grid-template-columns: 14px 1fr; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--panel-soft); }
 .kstep:last-child { border-bottom: 0; }
@@ -697,6 +700,7 @@ function renderPill() {
   el.querySelector('span:last-child').textContent = text;
 }
 function render() {
+  sel.clear(); // blokverwijzingen zijn posities en kloppen na opnieuw tekenen niet meer
   renderHeader();
   computeWeek();
   const v = document.getElementById('view');
@@ -1154,6 +1158,14 @@ function pickFor(scope, nr) {
   if (!/^\d{6}$/.test(nr)) return toast('Kies een project uit de lijst of typ een AFAS-nummer van 6 cijfers');
   if (scope === 'cal') {
     if (assignEvents([drawerCtx.b.ref], nr)) { closeDrawer(); render(); }
+    return;
+  }
+  if (scope === 'multi') {
+    const p = ensureProject(nr);
+    if (!p) return toast(`Nummer ${nr} niet gevonden in de AFAS-catalogus`);
+    const refs = ctx && ctx.kind === 'multi' ? ctx.refs : [...sel];
+    closeCtx();
+    assignMulti(refs, p.id);
     return;
   }
   if (scope === 'manual') {
@@ -1939,6 +1951,15 @@ function minAt(col, y) { return snap((y - col.getBoundingClientRect().top) / PX 
 let drag = null, suppressClick = false;
 document.addEventListener('pointerdown', (e) => {
   if (tab !== 'week' || e.button !== 0 || e.ctrlKey) return; // ctrl-klik is op de Mac een rechtsklik
+  if (e.metaKey && mode !== 'maand' && e.target.closest('#view')) {
+    // Cmd + slepen = selectiekader over meerdere blokken; cmd + klik = één blok erbij of eraf.
+    const box = document.createElement('div');
+    box.className = 'lasso'; box.style.display = 'none';
+    document.body.appendChild(box);
+    drag = { type: 'lasso', box, x0: e.clientX, y0: e.clientY, base: new Set(sel), moved: false, hit: e.target.closest('[data-b]') };
+    e.preventDefault();
+    return;
+  }
   const blk = e.target.closest('.blk');
   const col = e.target.closest('.col[data-col]');
   if (!col) return;
@@ -1960,6 +1981,17 @@ document.addEventListener('pointermove', (e) => {
   if (!drag) return;
   if (!drag.moved && Math.abs(e.clientY - (drag.y0 ?? 0)) < 4 && Math.abs(e.clientX - (drag.x0 ?? e.clientX)) < 4) return;
   drag.moved = true;
+  if (drag.type === 'lasso') {
+    const l = Math.min(drag.x0, e.clientX), t = Math.min(drag.y0, e.clientY), r = Math.max(drag.x0, e.clientX), btm = Math.max(drag.y0, e.clientY);
+    Object.assign(drag.box.style, { display: 'block', left: l + 'px', top: t + 'px', width: r - l + 'px', height: btm - t + 'px' });
+    sel.clear(); drag.base.forEach((x) => sel.add(x));
+    for (const el of document.querySelectorAll('#view [data-b]')) {
+      const q = el.getBoundingClientRect();
+      if (q.right > l && q.left < r && q.bottom > t && q.top < btm && selectable(el.dataset.b)) sel.add(el.dataset.b);
+    }
+    paintSel();
+    return;
+  }
   if (drag.type === 'create') {
     const cur = minAt(drag.col, e.clientY);
     drag.a = Math.min(drag.start, cur); drag.b = Math.max(drag.start + SNAP, cur);
@@ -1986,9 +2018,19 @@ document.addEventListener('pointermove', (e) => {
   const meta = drag.blk.querySelector('.m');
   if (meta) meta.textContent = `${minToHHMM(drag.ns)}-${minToHHMM(drag.ne)}`;
 });
-document.addEventListener('pointerup', () => {
+document.addEventListener('pointerup', (e) => {
   if (!drag) return;
   const d = drag; drag = null;
+  if (d.type === 'lasso') {
+    d.box.remove();
+    suppressClick = true; setTimeout(() => (suppressClick = false), 0);
+    if (!d.moved) {
+      if (d.hit && selectable(d.hit.dataset.b)) { const ref = d.hit.dataset.b; if (sel.has(ref)) sel.delete(ref); else sel.add(ref); paintSel(); }
+      return;
+    }
+    if (sel.size) openCtx(e.clientX, e.clientY, { kind: 'multi', refs: [...sel] });
+    return;
+  }
   if (d.type === 'create') {
     d.ghost.remove();
     if (d.moved && d.b - d.a >= SNAP) openManualDrawer(null, d.col.dataset.col, { start: minToHHMM(d.a), end: minToHHMM(d.b) });
@@ -2005,6 +2047,23 @@ document.addEventListener('click', (e) => { if (suppressClick) { e.stopPropagati
 // ---------- Rechtsklikmenu: vaste interne posten ----------
 const quickNrs = () => String(state.settings.quickNrs || '').split(/[,\s]+/).filter((x) => /^\d{6}$/.test(x));
 let ctx = null;
+// Selectie van meerdere blokken (cmd + slepen of cmd + klik) om in één keer toe te wijzen.
+const sel = new Set();
+const selectable = (ref) => { const b = findBlock(ref); return !!b && !b.removed; };
+function paintSel() { document.querySelectorAll('#view [data-b]').forEach((el) => el.classList.toggle('sel', sel.has(el.dataset.b))); }
+function clearSel() { if (!sel.size) return; sel.clear(); paintSel(); }
+function assignBlock(b, pid) {
+  if (b.kind === 'cal') state.assign['ev:' + b.ref.id] = pid;
+  else if (b.kind === 'act') assignPieces(b.pieces, pid);
+  else if (b.kind === 'manual') b.ref.projectId = pid;
+}
+function assignMulti(refs, pid) {
+  const blocks = refs.map(findBlock).filter((b) => b && !b.removed);
+  for (const b of blocks) assignBlock(b, pid);
+  noteRecent(pid);
+  save(); render();
+  toast(`${blocks.length} blokken toegewezen aan ${projLabel(pid)}`);
+}
 function closeCtx() { const el = document.querySelector('.ctxmenu'); if (el) el.remove(); ctx = null; }
 function openCtx(x, y, target) {
   closeCtx();
@@ -2014,7 +2073,7 @@ function openCtx(x, y, target) {
   const weekIds = weekData ? Object.entries(weekData.totals).sort((a, b) => b[1] - a[1]).map(([pid]) => pid) : [];
   const recent = [...new Set((state.recent || []).concat(weekIds))].filter((pid) => pid !== 'ignore' && !quickIds.has(pid) && proj(pid)).slice(0, 6).map(proj);
   const btn = (p, short) => `<button data-ctxpid="${p.id}"><span class="sw" style="background:${p.color}"></span><span class="mono">${esc(p.nr)}</span> ${esc(short ? p.name.replace(/^(Intern|Indirect|TVP) - /, '') : p.name)}</button>`;
-  const head = target.kind === 'new' ? `Nieuw blok ${target.start}-${target.end}` : 'Toewijzen aan';
+  const head = target.kind === 'new' ? `Nieuw blok ${target.start}-${target.end}` : target.kind === 'multi' ? `${target.refs.length} blokken toewijzen aan` : 'Toewijzen aan';
   const el = document.createElement('div');
   el.className = 'ctxmenu';
   el.innerHTML = `<div class="hd">${esc(head)}</div>`
@@ -2037,6 +2096,8 @@ document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const b = findBlock(blkEl.dataset.b);
     if (b && b.removed) { openBlock(blkEl.dataset.b); return; }
+    if (sel.size > 1 && sel.has(blkEl.dataset.b)) { openCtx(e.clientX, e.clientY, { kind: 'multi', refs: [...sel] }); return; }
+    clearSel();
     if (b) openCtx(e.clientX, e.clientY, { kind: 'block', b, ref: blkEl.dataset.b });
   } else if (col) {
     e.preventDefault();
@@ -2044,14 +2105,27 @@ document.addEventListener('contextmenu', (e) => {
     openCtx(e.clientX, e.clientY, { kind: 'new', date: col.dataset.col, start: minToHHMM(start), end: minToHHMM(start + 60) });
   }
 });
-document.addEventListener('mousedown', (e) => { if (ctx && !e.target.closest('.ctxmenu')) closeCtx(); }, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ctx) closeCtx(); });
+document.addEventListener('mousedown', (e) => {
+  if (ctx && !e.target.closest('.ctxmenu')) closeCtx();
+  if (sel.size && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.target.closest('.ctxmenu')) clearSel();
+}, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (ctx) closeCtx(); else clearSel(); } });
 // Alleen sluiten als het rooster echt scrolt, niet bij scrollen in het menu zelf.
 window.addEventListener('scroll', (e) => { if (ctx && !(e.target.closest && e.target.closest('.ctxmenu'))) closeCtx(); }, true);
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.ctxmenu button');
-  if (!btn || !ctx) return;
+  if (!btn || !ctx || btn.dataset.act) return;
+  if (ctx.kind === 'multi' && btn.dataset.ctxother) {
+    // Zoekveld in het menu zelf, zodat de selectie blijft staan.
+    const menu = btn.closest('.ctxmenu');
+    menu.innerHTML = `<div class="hd">${ctx.refs.length} blokken toewijzen aan</div><div style="padding:0 6px 6px">${nrInput('data-scope="multi"')}</div>`;
+    const inp = menu.querySelector('input'); if (inp) inp.focus({ preventScroll: true });
+    const r = menu.getBoundingClientRect();
+    if (r.bottom > innerHeight - 8) menu.style.top = Math.max(8, innerHeight - r.height - 8) + 'px';
+    return;
+  }
   const t = ctx; closeCtx();
+  if (t.kind === 'multi') { if (btn.dataset.ctxpid) assignMulti(t.refs, btn.dataset.ctxpid); return; }
   if (btn.dataset.ctxremove) { removeCal(t.b.ref); return; }
   if (btn.dataset.ctxother) {
     if (t.kind === 'new') openManualDrawer(null, t.date, { start: t.start, end: t.end });
@@ -2063,10 +2137,7 @@ document.addEventListener('click', (e) => {
   if (t.kind === 'new') {
     state.manual.push({ id: uid(), date: t.date, start: t.start, end: t.end, projectId: pid, note: '' });
   } else {
-    const b = t.b;
-    if (b.kind === 'cal') state.assign['ev:' + b.ref.id] = pid;
-    else if (b.kind === 'act') assignPieces(b.pieces, pid);
-    else if (b.kind === 'manual') b.ref.projectId = pid;
+    assignBlock(t.b, pid);
   }
   save(); render();
   toast(t.kind === 'new' ? `Blok ${t.start}-${t.end} toegevoegd op ${projLabel(pid)}` : `Toegewezen aan ${projLabel(pid)}`);
@@ -2113,7 +2184,7 @@ async function boot() {
   setInterval(loadStatus, 15000);
   // Elke minuut verse activiteit, tenzij de gebruiker net iets bewerkt.
   setInterval(async () => {
-    if (ctx || document.getElementById('drawer').classList.contains('open')) return; // niet verversen terwijl het rechtsklikmenu open staat
+    if (ctx || sel.size || document.getElementById('drawer').classList.contains('open')) return; // niet verversen terwijl het rechtsklikmenu open staat
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     await Promise.all([loadCalendar().catch(() => {}), loadActivity().catch(() => {}), monthMode() ? loadMonthActivity(true).catch(() => {}) : null]);
     render();
