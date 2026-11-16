@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Uren</title>
-<meta name="uren-web-version" content="2026.10.18.1">
+<meta name="uren-web-version" content="2026.11.16.1">
 <meta name="uren-min-app" content="2.0">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
@@ -204,7 +204,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 .grp select { font-size: var(--text-xs); }
 .box { background: var(--panel-soft); border-radius: var(--radius-lg); padding: var(--space-3); margin: var(--space-3) 0; }
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
-.nrresults { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-1); }
+.nrresults { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-1); max-height: 320px; overflow-y: auto; }
 .nrresults button { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-md); padding: 6px var(--space-2); font-size: var(--text-sm); }
 .nrresults button:hover { border-color: var(--blue); background: var(--accent-soft); }
 
@@ -1120,12 +1120,24 @@ function suggestButtons(list, attrs) {
   return list.map((sg, i) => `<button class="btn sm ${i === 0 ? 'primary' : ''}" style="text-align:left;white-space:normal;margin:0 6px 6px 0" data-act="pickSuggest" data-nr="${sg.nr}" ${attrs}><b class="mono">${sg.nr}</b> ${esc(sg.name)}<div class="small" style="opacity:.75">${esc(sg.why.join(' · ') || sg.client)}</div></button>`).join('');
 }
 const nrInput = (attrs) => `<div style="margin-top:4px"><div class="row"><input type="search" autocomplete="off" placeholder="Zoek op AFAS-nr of projectnaam" data-nrinput ${attrs}><button class="btn sm" data-act="pickNr" ${attrs} style="flex:0">Toewijzen</button></div><div class="small muted" data-nrhint style="margin-top:3px"></div><div class="nrresults" data-nrresults></div></div>`;
-function searchCatalog(q, limit = 8) {
-  const ws = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+// Zoeken: hoofdletters, accenten en leestekens tellen niet mee ("cnv:" vindt ook "CNV -"), elk woord moet ergens voorkomen.
+const foldText = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+function searchCatalog(q, limit = 60) {
+  const ws = foldText(q).split(' ').filter(Boolean);
   if (!ws.length) return [];
   const own = new Set(state.projects.map((p) => p.nr).filter(Boolean));
-  return catalog.filter((c) => { const h = (c.nr + ' ' + c.name + ' ' + c.client).toLowerCase(); return ws.every((w) => h.includes(w)); })
-    .sort((a, b) => (own.has(b.nr) - own.has(a.nr)) || ((catDate(b) || 0) - (catDate(a) || 0))).slice(0, limit)
+  // Je eigen projecten tellen ook mee, ook als ze (nog) niet in de catalogus staan.
+  const pool = new Map(catalog.map((c) => [c.nr, c]));
+  for (const p of state.projects) if (p.nr && !pool.has(p.nr)) pool.set(p.nr, { nr: p.nr, name: p.name || '', client: p.admin || '', start: '' });
+  const hits = [...pool.values()].filter((c) => { const h = ' ' + foldText(c.nr + ' ' + c.name + ' ' + c.client + ' ' + (c.lead || '')) + ' '; return ws.every((w) => h.includes(w)); });
+  // Alleen wat nu speelt: gestart dit of vorig jaar en niet afgesloten. Eigen projecten altijd. Niets recents? Dan toch alles.
+  const since = new Date(new Date().getFullYear() - 1, 0, 1);
+  const recent = (c) => own.has(c.nr) || (!/afgerond|afgemeld|vervallen/i.test(c.status || '') && (!catDate(c) || catDate(c) >= since));
+  const fresh = hits.filter(recent);
+  searchCatalog.hidden = fresh.length ? hits.length - fresh.length : 0;
+  return (fresh.length ? fresh : hits)
+    // Nieuwste aanvangsdatum bovenaan; zonder datum onderaan, dan op nummer (hoger is nieuwer).
+    .sort((a, b) => ((catDate(b) || 0) - (catDate(a) || 0)) || (+b.nr - +a.nr)).slice(0, limit)
     .map((c) => ({ ...c, own: own.has(c.nr) }));
 }
 const nrFrom = (v) => (String(v || '').match(/\b\d{6}\b/) || [''])[0];
@@ -1195,10 +1207,33 @@ function askMessage(lines) {
   const body = lines.length === 1 ? lines[0] : lines.map((l, i) => `${i + 1}. ${l}`).join('\n\n');
   return `Hoi ${state.settings.askName}! Ik twijfel over het juiste AFAS-project:\n\n${body}\n\nDankjewel!`;
 }
-async function copyAndOpenSlack(text) {
-  try { await navigator.clipboard.writeText(text); } catch {}
-  window.open(state.settings.askSlack, '_blank');
-  toast('Bericht gekopieerd. Plak het in Slack (cmd+V) en verstuur.');
+// Kopiëren: eerst het systeemklembord (werkte altijd), de oude execCommand-route alleen als dat niet bestaat.
+function copyNow(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => true, () => copyLegacy(text));
+  return Promise.resolve(copyLegacy(text));
+}
+function copyLegacy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  ta.remove();
+  return ok;
+}
+function copyAndOpenSlack(text) {
+  const url = String(state.settings.askSlack || '').trim();
+  if (!/^https:\/\//.test(url)) { copyNow(text); toast('Vul eerst een geldige Slack-link in bij Instellingen › Koppelingen'); return; }
+  const done = (ok) => toast(ok ? 'Bericht gekopieerd. Plak het in Slack (cmd+V) en verstuur.' : 'Slack geopend. Kopiëren lukte niet: het bericht staat bij Vragen.');
+  if (status.appVersion) {
+    // Mac-app: eerst kopiëren, dan een gewone navigatie die het venster doorstuurt naar browser of Slack (wordt niet geblokkeerd).
+    copyNow(text).then((ok) => { const a = document.createElement('a'); a.href = url; document.body.appendChild(a); a.click(); a.remove(); done(ok); });
+  } else {
+    // Browser: het nieuwe tabblad moet direct in de klik open, anders blokkeert de browser hem.
+    const p = copyNow(text);
+    window.open(url, '_blank', 'noopener');
+    p.then(done);
+  }
 }
 function askBlock() {
   const b = drawerCtx.b;
@@ -1602,7 +1637,7 @@ function afasSteps() {
   const missing = rows.filter((r) => !state.projects.some((p) => p.nr === r.nr));
   const ext = t
     ? `Verbonden met <code>${esc(t.host || 'AFAS')}</code>, week van ${parseKey(t.monday).getDate()} ${MONTHS[parseKey(t.monday).getMonth()]} staat open.`
-    : `Nog niet verbonden. Installeer eenmalig de Chrome-extensie: ga naar <code>chrome://extensions</code>, zet Ontwikkelaarsmodus aan, kies "Uitgepakte extensie laden" en kies de map die je opent via ⏱ › <b>Chrome-extensie tonen in Finder</b>. Open daarna je AFAS-urenmatrix.`;
+    : `Nog niet verbonden. <button class="btn sm" data-act="reinstallAfasExtension">Chrome-extensie opnieuw installeren</button><div class="small muted" style="margin-top:6px">De app ververst de extensie en opent Chrome. Klik daar bij “Uren naar AFAS” op Vernieuwen. Staat hij er nog niet tussen, kies dan Uitgepakte extensie laden en selecteer de map die de app toont.</div>`;
   const cat = catalog.length
     ? `${catalog.length} projecten in de catalogus${catalogUpdated ? ` (bijgewerkt ${new Date(catalogUpdated).toLocaleDateString('nl-NL')})` : ''}.`
     : 'Nog geen projectcatalogus.';
@@ -1724,6 +1759,12 @@ document.addEventListener('click', async (e) => {
       const el = document.getElementById('updateResult'); if (el) el.textContent = 'Controleren…';
       try { const r = await api('/api/update-check', { method: 'POST' }); if (el) el.textContent = r.result; await loadStatus(); }
       catch { if (el) el.textContent = 'Controleren lukte niet'; }
+    },
+    reinstallAfasExtension: () => {
+      const handler = window.webkit?.messageHandlers?.uren;
+      if (!handler) return toast('Open dit in de Mac-app Uren om de Chrome-extensie opnieuw te installeren');
+      handler.postMessage('reinstallAfasExtension');
+      toast('De Chrome-extensie wordt vernieuwd');
     },
     importRows: () => {
       const rows = ((afasTabInfo.tab || {}).rows || []).filter((r) => !state.projects.some((p) => p.nr === r.nr));
@@ -1878,7 +1919,8 @@ document.addEventListener('input', (e) => {
   const box = e.target.closest('div').parentElement.querySelector('[data-nrresults]');
   if (box) {
     const res = v.length >= 2 && !c ? searchCatalog(v) : [];
-    box.innerHTML = res.map((r) => `<button data-act="pickSuggest" data-nr="${r.nr}" data-scope="${e.target.dataset.scope}"><b class="mono">${r.nr}</b> ${esc(r.name)} <span class="muted">· ${esc(r.client)}${r.start ? ' · ' + r.start : ''}${r.own ? ' · in je lijst' : ''}</span></button>`).join('') || (v.length >= 2 && !c ? '<span class="small muted">Geen project gevonden</span>' : '');
+    const old = res.length && searchCatalog.hidden ? `, ${searchCatalog.hidden} oudere verborgen` : '';
+    box.innerHTML = (res.length > 8 || old ? `<span class="small muted">${res.length >= 60 ? 'Meer dan 60' : res.length} projecten gevonden${old}</span>` : '') + res.map((r) => `<button data-act="pickSuggest" data-nr="${r.nr}" data-scope="${e.target.dataset.scope}"><b class="mono">${r.nr}</b> ${esc(r.name)} <span class="muted">· ${esc(r.client)}${r.start ? ' · ' + r.start : ''}${r.own ? ' · in je lijst' : ''}</span></button>`).join('') || (v.length >= 2 && !c ? '<span class="small muted">Geen project gevonden</span>' : '');
   }
 });
 document.addEventListener('keydown', (e) => {
